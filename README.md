@@ -7,16 +7,19 @@ Install/compile instructions for Ubuntu:
 
 # Install opencv
 
-   apt-get install libopencv-dev
+   $ apt-get install libopencv-dev
 
 
 Build:
 
 # create a build dir, cmake and make
-mkdir build
-cd build
-cmake ..
-make
+   
+   $ mkdir build
+   
+   $ cd build
+   $ cmake ..
+   
+   $ make
 
     
    
