@@ -20,6 +20,6 @@ add_definitions(${GCC_COMPILE_FLAGS})
 
 add_executable(w2mhs-itk w2mhs-itk.cxx)
 
-target_link_libraries(CAIWMHDetector
+target_link_libraries(w2mhs-itk #changed to match above
   ${Glue} ${ITK_LIBRARIES} ${OpenCV_LIBS})
 

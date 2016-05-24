@@ -13,16 +13,30 @@
  */
 
 
+/*
+ * 
+ * additional edits by andrew jones
+ * andrewthomasjones@gmail.com
+ * 2016
+ * main changes:
+ * input arg structure changed
+ * new modes for testig and training
+ * partly complete edits to iterators
+ * 
+ * 
+ */
+
 #include "itkImage.h"
 #include "itkImageFileReader.h"
 #include "itkNiftiImageIO.h"
-
+#include "itkImageRegionIteratorWithIndex.h"
 #include "itkImageFileWriter.h"
 #include "itkDiscreteGaussianImageFilter.h"
 #include "itkRegionOfInterestImageFilter.h"
-
+#include "itkConstNeighborhoodIterator.h"
+#include "itkNeighborhood.h"
 #include "itkConvolutionImageFilter.h"
-
+#include "itkConstantBoundaryCondition.h"
 #include "itkSubtractImageFilter.h"
 
 #include "itkRescaleIntensityImageFilter.h"
@@ -45,7 +59,7 @@
 #include <cstdlib>
 #include <cv.h>       // opencv general include file
 #include <ml.h>
-
+#include <string.h>
 #include <vector>
 
 #include <unistd.h>
@@ -59,12 +73,13 @@ using namespace cv;
 //define the global required types here
    typedef itk::Image<float,3> ImageType;
    typedef ImageType::Pointer ImagePointer;
-
+	typedef itk::MaskImageFilter< ImageType, ImageType > MaskFilterType;
    typedef itk::Image<float,2> ImageType2D;
    typedef ImageType2D::Pointer ImagePointer2D;
 
 //declare the methods' signature here
    ImagePointer NiftiReader(char *inputFile);
+   ImagePointer NiftiReader(std::string inputFile);
    bool NiftiWriter(ImagePointer input,std::string outputFile);
    ImagePointer GetPatch(ImagePointer input,ImageType::IndexType centreIdx,unsigned int ROIsize);
    void MarginateImage(ImagePointer input,int marginWidth);
@@ -96,6 +111,7 @@ using namespace cv;
    std::list<ImagePointer> CreateDifferenceOfGLKernels(bool GaussianOrLaplacian,std::array<int,2> width,std::array<double,4> baseVarianceArray);
    ImagePointer CreateSobelKernel();
    ImagePointer ConvolveImage(ImagePointer input,ImagePointer kernel,bool normaliseOutput);
+   ImagePointer ConvolveImage2(ImagePointer patch,ImagePointer kernel);
    std::list<ImagePointer> GetAllKernels();
    void AppendToPatchFeatureVector(ImagePointer patch,Mat patchFeatureMat, int startIdx);
    void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat);
@@ -103,45 +119,78 @@ using namespace cv;
    ////Random Forest functions
    bool LoadTrainingDataset(const char* trainingFilename, Mat trainingFeatures, Mat trainingLabels,int samplesCount,int featuresCount);
    bool LoadTestingDataset(const char* testingFilename, Mat testingFeatures, Mat testingLabels,int samplesCount,int featuresCount);
-   CvRTrees* GenOrLoadRFModel(const char* modelFilename, Mat trainingFeatures, Mat trainingLabels,bool toGenerate);
+   CvRTrees* GenOrLoadRFModel(const char* modelFilename, Mat trainingFeatures, Mat trainingLabels);
+   CvRTrees* GenOrLoadRFModel(const char* modelFilename);
    ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel, int featuresCount,char *rfSegOutFilename);
+   ImagePointer ClassifyWMHs2(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel, int featuresCount,char *rfSegOutFilename);
    ImagePointer CreateWMHPmap(ImagePointer rfSegmentedImg, ImagePointer refImg, char *gcFilename, char *pmapFilename);
+   ImagePointer CreateWMHPmapN(ImagePointer rfSegmentedImg, char *pmapFilename);
+   ImagePointer CreateWMHPmapLR(ImagePointer rfSegmentedImg, char *pmapFilename);
    void QuantifyWMHs(float pmapCut, ImagePointer pmapImg, char *ventricleFilename, char *outputFilename);
-
+   
+   //New functions - Andy 2016
+	Mat getFeatureVector(ImagePointer WMModStripImg, ImagePointer BRAVOImg, int featuresCount);
+	void getFeatureOut(char* WMStrippedFilename,char* BRAVOFilename,char* WMMaskFilename, char* quantResultFilename, int numberOfFeatures);
+	void ReadSubFolders(char * folderName, char *foldersList);
+	void CreateTrainingDataset(char* WMFilename,char* pmapFilename,char* segoutFilename,char* featuresFilename);
    ////For training
 //   void ReadSubFolders(char * folderName,const char *foldersList);
 //   void CreateTrainingDataset(char* WMFilename,char* pmapFilename,char* segoutFilename,char* featuresFilename);
 
    ////FOR TEST
-//   void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat,char* outputFilename,float classLabel);   //FOR TESTING AND DEBUGGING
+   void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat,char* outputFilename,float classLabel);   //FOR TESTING AND DEBUGGING
 //   void PerformanceTest(std::string message);
    void CalculateMSE(ImagePointer img1,ImagePointer img2);
 
+	typedef itk::ConstantBoundaryCondition<ImageType>  BoundaryConditionType;
+	typedef itk::ConstNeighborhoodIterator< ImageType , BoundaryConditionType> NeighborhoodIteratorType;
+	typedef itk::Neighborhood< ImageType > NeighborhoodType;
+	void CreatePatchFeatureVectorN(NeighborhoodType patch, Mat patchFeatureMat);
+	typedef itk::ConvolutionImageFilter<ImageType> ConvolutionType;
+
+		
 int main(int argc, char *argv[])
 {
-   if(argc < 17)   //there are 8 command line arguments and 8 corresponding 'options'. ---> 8*2=16+1=17
+   /*if(argc < 17)   //there are 8 command line arguments and 8 corresponding 'options'. ---> 8*2=16+1=17
    {
       ShowCommandLineHelp(argv[0]);
       return 1;
-   }
-
+   } //some of the new modes have different numbers of args.
+   */
+ //
    char* trainingFilename;
    char* rfmodelFilename;
+   char* folderName;
+   char* subFolderName;
    char* WMStrippedFilename;
    char* segOutFilename;
    char* GMCSFStippedFilename;
    char* pmapOutFilename;
+   char* WMMaskFilename;
    char* venctricleBinFilename;
+   std::string flipName;
+   char* BRAVOFilename;
    char* quantResultFilename;
+   bool createNewRFModel = false;
+   bool testFlag = false;
+   bool twoMode = false;
+   bool justGetFeat = false;
+   bool maskFlip = false;
+   bool createNewTrainingSet = false;
    int numberOfTrainingSamples=0;   //the training data set size
+   float pmapCut = 0;
    char option;
-   while((option=getopt(argc,argv,"ht:n:m:w:s:g:p:v:q:")) != -1)
+   while((option=getopt(argc,argv,"ht:n:m:w:s:g:p:v:q:z:x:y:i:j:a:b:kf:c:")) != -1)
    {
       switch(option)
       {
         case 'h':
                ShowCommandLineHelp(argv[0]);
                return 1;
+       case 'k':
+               std::cout << "You're in T E S T   M O D E..." << std::endl;
+               testFlag=true;
+               break;
         case 't':
                  trainingFilename=optarg;
                  break;
@@ -169,6 +218,55 @@ int main(int argc, char *argv[])
         case 'q':
                    quantResultFilename=optarg;
                break;
+        case 'c': 
+				pmapCut = std::stoi(optarg);
+				break;
+		case 'z':
+                 if(optarg == "new"){
+					createNewRFModel=true;
+				}else{
+					createNewRFModel=false;
+				}           
+               break;
+               
+	   case 'x':     
+				WMStrippedFilename=optarg;
+				std::cout << "You're in feature vector mode..." << std::endl;
+				justGetFeat =true;
+               
+               break;
+        case 'y':     
+               BRAVOFilename=optarg;
+			   twoMode =true;
+               
+               break;
+               
+       case 'i':     
+               quantResultFilename=optarg;
+               break;
+               
+       case 'j':
+				WMMaskFilename = optarg;
+				break;
+	   case 'a':
+               folderName = optarg;
+               std::cout << "You're in trainig set mode..." << std::endl;
+               createNewTrainingSet=true;
+               std::cout << folderName <<std::endl;
+               break;
+        case 'b':
+               subFolderName =  optarg;
+               std::cout << subFolderName <<std::endl;
+               break;
+        case 'f':
+				std::cout << "inverting mask.." << std::endl;
+				
+				flipName=std::string(optarg);
+				
+               
+               std::cout << flipName  << std::endl;
+               maskFlip=true;
+               break;
         default:
                ShowCommandLineHelp(argv[0]);
                return 1;
@@ -186,13 +284,100 @@ int main(int argc, char *argv[])
 
 
       //TODO: this variable should come in as an input command line argument
-      bool createNewRFModel=true;   //this is to indicate whether a pre-generated model should be loaded, or a new model needs to be generated
+      //bool createNewRFModel=true;   //this is to indicate whether a pre-generated model should be loaded, or a new model needs to be generated
 
 //      int numberOfTrainingSamples=4242;   //the training data set size
 //      int numberOfTestingSamples=96818;   //the testing data set size...NOTE: THIS IS ONLY FOR TEST & DEBUG PURPOSES, WHEN WE HAVE A PRE-EXTRACTED TESTING DATA SET FROM THE MRI SCANS.
                                  //This might make the process to run more efficiently.
       int numberOfFeatures=2000;         //number of features per sample
+		
+		if(testFlag){
+			
+			std::cout << " do some new stuff" <<std::endl;
+			
+			
+			GMCSFStippedFilename = "/data/home/uqajon14/TrainingData/CAI_itk_w2mhs/itk_data/out_m013126/GMCSF_strip_m013126.nii";
+			WMStrippedFilename = "/data/home/uqajon14/TrainingData/CAI_itk_w2mhs/itk_data/out_m013126/WM_modstrip_m013126.nii";
+			rfmodelFilename="/data/home/uqajon14/TrainingData/CAI_itk_w2mhs/itk_RFmodel/envisionRFModel_3107_4242.xml";
+			
+			pmapOutFilename = "/data/home/uqajon14/TrainingData/out/pmap.nii";
+			segOutFilename = "/data/home/uqajon14/TrainingData/out/segOut.nii";
+			
+			CvRTrees* rfModel=new CvRTrees();
+			rfModel=GenOrLoadRFModel(rfmodelFilename);
+			
+			ImagePointer inNifti = NiftiReader(WMStrippedFilename); 
+			int numberOfFeatures = 2000;
+			
+			ImagePointer RFSegOutImage;  
+			
+			RFSegOutImage=ClassifyWMHs2(inNifti,rfModel,numberOfFeatures,segOutFilename); 
+			
+			
+			// Creating the probability map image out of the segmented image in the previous step.
+			 ImagePointer pmap=CreateWMHPmap(RFSegOutImage,inNifti,GMCSFStippedFilename,pmapOutFilename);
+			
+			
+			std::cout << " done" <<std::endl;
+		
+		
+		
+		
+		return 0;
+		}
+		
+		if(maskFlip){
+			std::cout << "reading file" <<std::endl;
+			ImagePointer inNifti = NiftiReader(flipName +".nii"); 
+			inNifti->SetRequestedRegionToLargestPossibleRegion();
+			itk::ImageRegionIterator<ImageType> inputIterator(inNifti, inNifti->GetRequestedRegion());
 
+			//creating an output image (i.e. a segmentation image) out of the prediction results.
+			ImagePointer outNifti=ImageType::New();
+
+			ImageType::IndexType outStartIdx;
+			outStartIdx.Fill(0);
+
+			ImageType::SizeType outSize=inNifti->GetLargestPossibleRegion().GetSize();
+
+			ImageType::RegionType outRegion;
+			outRegion.SetSize(outSize);
+			outRegion.SetIndex(outStartIdx);
+
+			outNifti->SetRegions(outRegion);
+			outNifti->SetDirection(inNifti->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
+			outNifti->SetSpacing(inNifti->GetSpacing());      //e.g. 2mm*2mm*2mm
+			outNifti->SetOrigin(inNifti->GetOrigin());
+			outNifti->Allocate();
+			itk::ImageRegionIterator<ImageType> outIterator(outNifti, outRegion);
+			std::cout << "begining flipping" <<std::endl;
+
+			while(!inputIterator.IsAtEnd())
+			{
+				 
+				outIterator.Set((float)((int)inputIterator.Get()^1));
+				
+				++inputIterator;
+				++outIterator;
+			}
+			std::cout << "save file" <<std::endl;
+			NiftiWriter(outNifti,flipName+"_inv"+".nii" );
+			return 0;
+		}
+
+		if(justGetFeat){
+			getFeatureOut(WMStrippedFilename, BRAVOFilename, WMMaskFilename, quantResultFilename, numberOfFeatures );
+			return 0;
+		}
+		
+		if(createNewTrainingSet)
+		{
+			std::cout << folderName <<" " <<subFolderName <<std::endl;
+			ReadSubFolders(folderName,subFolderName);
+			std::cout << "Done!" << std::endl;
+			return 0;
+		}
+		
       //CV_32FC2 means a 2-channel (complex) floating-point array
        Mat trainingSamples = Mat(numberOfTrainingSamples, numberOfFeatures, CV_32FC1);   //this is to keep the training data
        Mat trainingLabels = Mat(numberOfTrainingSamples, 1, CV_32FC1);               //this is to keep the labels provided in the training data
@@ -207,19 +392,20 @@ int main(int argc, char *argv[])
 
        if(createNewRFModel)
        {
-          // loading training and testing data sets
-          if (LoadTrainingDataset(trainingFilename, trainingSamples, trainingLabels, numberOfTrainingSamples,numberOfFeatures))
-             rfModel=GenOrLoadRFModel(rfmodelFilename,trainingSamples,trainingLabels,createNewRFModel);
+          // loading training and testing data setsCreatePatchFeatureVector
+          if (LoadTrainingDataset(trainingFilename, trainingSamples, trainingLabels, numberOfTrainingSamples, numberOfFeatures))
+             rfModel=GenOrLoadRFModel(rfmodelFilename,trainingSamples,trainingLabels);
+             
          else
          {
             std::cerr << "Training data set couldn't be loaded!" << std::endl;
             return -1;
          }
        }
-       else
-          rfModel=GenOrLoadRFModel(rfmodelFilename,trainingSamples,trainingLabels,createNewRFModel);
-
-
+       else{
+		  rfModel=GenOrLoadRFModel(rfmodelFilename);
+		   
+       }
 //       LoadTestingDataset("<path-to-.csv-test-file>",testingSamples,testingLabels,numberOfTestingSamples,numberOfFeatures);   //NOTE: THIS IS ONLY FOR TEST & DEBUG PURPOSES, WHEN WE HAVE A PRE-EXTRACTED TESTING DATA SET FROM THE MRI SCANS.
 
 //Note: the following block of code can be used to calculate MSE, when the 'labels' are saved in the testing data set as the last column.
@@ -247,6 +433,14 @@ int main(int argc, char *argv[])
 //      }
 //      std::cout << "MSE=\t" << MSE/numberOfTrainingSamples << std::endl;
 
+		string pmapName(pmapOutFilename);
+	    		
+		size_t lastindex = pmapName.find_last_of("."); 
+		string rawname = pmapName.substr(0, lastindex); 
+		string pmapOutFilename2 = rawname + "_2.nii";
+		string pmapOutFilename3 = rawname + "_3.nii";
+		string pmapOutFilename4 = rawname + "_4.nii";
+
 
       ImagePointer inNifti=NiftiReader(WMStrippedFilename);
       //inNifti->SetReleaseDataFlag(true);      //Turn on/off the flags to control whether the bulk data belonging to the outputs of this ProcessObject are released after being used by a downstream ProcessObject. Default value is off. Another options for controlling memory utilization is the ReleaseDataBeforeUpdateFlag.
@@ -258,13 +452,17 @@ int main(int argc, char *argv[])
             RFSegOutImage=ClassifyWMHs(inNifti,rfModel,numberOfFeatures,segOutFilename);   //For TEST USE: RFSegOutImage=ClassifyWMHs(inNifti,rfModel,numberOfFeatures,segOutFilename,testingSamples);
          else                  //Loading the pre-WMH segmented image from a file.
             RFSegOutImage=NiftiReader(segOutFilename);
-
+	    
+	    
+			
          // Creating the probability map image out of the segmented image in the previous step.
          ImagePointer pmap=CreateWMHPmap(RFSegOutImage,inNifti,GMCSFStippedFilename,pmapOutFilename);
+         //ImagePointer pmap2=CreateWMHPmapN(RFSegOutImage,pmapOutFilename2.c_str());
+        // ImagePointer pmap3=CreateWMHPmapLR(RFSegOutImage,pmapOutFilename3.c_str());
 
          bool doWMHQuantification=true;   //this may come as an input command line argument
          if(doWMHQuantification)
-            QuantifyWMHs(0.5,pmap,venctricleBinFilename,quantResultFilename);   //TODO: 'pmapCut' parameter may come as an input command line argument
+            QuantifyWMHs(pmapCut,pmap,venctricleBinFilename,quantResultFilename);   //TODO: 'pmapCut' parameter may come as an input command line argument
          std::cout << "DONE!" << std::endl;
          return 0;
       }//end of checking if(inNifti NOT NULL)
@@ -278,18 +476,80 @@ int main(int argc, char *argv[])
 void ShowCommandLineHelp(char* appname)
 {
    std::cerr << "Usage:   " << appname << " [-option] [argument]"<< std::endl;
-   std::cerr << "options:  " << std::endl;
    std::cerr << "      " << "-h:  Shows command line help." << std::endl;
-   std::cerr << "      " << "-t: Specifies the training data set .csv file name and path, from which the Random Forest model will be created."<< std::endl;
-   std::cerr << "      " << "-n: Specifies the number of samples existing in the training data set."<< std::endl;
+   std::cerr << std::endl;
+   std::cerr << "main options:  " << std::endl;
    std::cerr << "      " << "-m: Specifies the .xml file name and path, where the Random Forest model will be saved/loaded."<< std::endl;
    std::cerr << "      " << "-w: Specifies the .nii file name and path of the WM stripped image."<< std::endl;
    std::cerr << "      " << "-s: Specifies the .nii file name and path, where the WMH segmentation results will be saved."<< std::endl << std::endl;
    std::cerr << "      " << "-g: Specifies the .nii file name and path of the GMCSF stripped image." << std::endl;
-   std::cerr << "      " << "-p: Specified the .nii file name and path, where the WMH probability map will be saved." << std::endl;
-   std::cerr << "      " << "-v: Specified the .nii file name and path of the binary ventricle PVE image." << std::endl;
-   std::cerr << "      " << "-q: Specified the (.txt) file name and path, where WMH quantification results will be saved." << std::endl;
+   std::cerr << "      " << "-p: Specifies the .nii file name and path, where the WMH probability map will be saved." << std::endl;
+   std::cerr << "      " << "-v: Specifies the .nii file name and path of the binary ventricle PVE image." << std::endl;
+   std::cerr << "      " << "-q: Specifies the (.txt) file name and path, where WMH quantification results will be saved." << std::endl;
+   std::cerr << "      " << "-c: Specifies the minimum cut-off for volume calculations using pmap" << std::endl;
+   std::cerr << std::endl;
+   std::cerr << "      " << "-z: \"new\" will generate a RF model. Otherwise normal run." << std::endl;
+   std::cerr << "      " << "-t: Specifies the training data set .csv file name and path, from which the Random Forest model will be created."<< std::endl;
+   std::cerr << "      " << "-n: Specifies the number of samples existing in the training data set."<< std::endl;
+   std::cerr << std::endl;
+   std::cerr << "=============================================================================="<< std::endl;
+   std::cerr << std::endl;
+   std::cerr << "options for a new training set" << std::endl;
+   std::cerr << "      " << "-a:  main folder." << std::endl;
+   std::cerr << "      " << "-b:  sub folder." << std::endl;
+   std::cerr << "=============================================================================="<< std::endl;
+   std::cerr << std::endl;
+   std::cerr << "options for outputing features" << std::endl;
+   std::cerr << "      " << "-x: Specifies the .nii file name and path of the WM stripped image. also acitivates this mode" << std::endl;
+   std::cerr << "      " << "-y: Specifies the .nii file name and path of the Second mode image e.g BRAVO" << std::endl;
+   std::cerr << "      " << "-i: output filename .csv" << std::endl;
+   std::cerr << "      " << "-j: Specifies the .nii file name and path of the WM mask image" << std::endl;
+   std::cerr << "=============================================================================="<< std::endl;
+   std::cerr << "      " << "-k: flags test mode" << std::endl;
+   
 }//end of ShowCommandLineHelp()
+
+
+void getFeatureOut(char* WMStrippedFilename,char* BRAVOFilename,char* WMMaskFilename, char* quantResultFilename, int numberOfFeatures ){
+	std::cout << "opening file: " << WMStrippedFilename << std::endl;
+	std::cout << "rreading in image" << std::endl;
+
+	ImagePointer inNifti=NiftiReader(WMStrippedFilename);
+	ImagePointer inNifti2=NiftiReader(BRAVOFilename);
+	ImagePointer inNiftiM=NiftiReader(WMMaskFilename);
+
+	MaskFilterType::Pointer maskFilter = MaskFilterType::New();
+	maskFilter->SetInput(inNifti2);
+	maskFilter->SetMaskImage(inNiftiM);
+	maskFilter->Update();
+	ImagePointer inNifti2b = maskFilter->GetOutput();
+
+	//NiftiWriter(inNifti2b,"/data/home/uqajon14//TrainingData/CAI_itk_w2mhs/itk_data/test.nii" );
+
+
+	Mat featMat =  getFeatureVector(inNifti,inNifti2b, numberOfFeatures);
+
+
+	std::cout << "save out...." << std::endl;
+			
+			std::ofstream myfile;
+			myfile.open(quantResultFilename);
+			
+			
+			myfile << format(featMat, "CSV") << std::endl;
+			//for(int i=0; i<featMat.rows; i++){
+				//myfile << i << "," << featMat.row(i) << std::endl;
+				
+			//}
+			
+			
+			//myfile << std::endl << std::endl;
+			myfile.close();
+
+	std::cout << "DONE!" << std::endl;
+  
+}
+
 
 //FOR TEST: 'testingSamples' IS PASSED TO THIS METHOD ONLY WHEN TESTING & DEBUGGING. IN REAL CASES, THESE SAMPLES WILL BE EXTRACTED FROM THE INPUT IMAGES.
 //ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel, int featuresCount,char *rfSegOutFilename, Mat testingSamples)
@@ -303,6 +563,106 @@ ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel
     * Note: itk::BinaryThresholdImageFilter can be used instead, if it is required to save the thresholded indexes (as in the W2MHS toolbox).
     */
    double threshold=0.3*GetHistogramMax(WMModStripImg,127);
+
+   /* The following pipeline will be processed to classify all voxels of the input image in the form of a regression model (i.e. closer to -1: less likely to be a WMH voxel. closer to +1: more likely to be a WMH voxel.)
+    *
+    * 1.iterating through the thresholded voxels
+    * 2.creating a patch of 5*5*5, for each voxel
+    * 3.extracting a feature vector of 2000 features for each patch
+    * 4.sending the patch feature vector to the created/loaded Random Forest classifier for predicting its label.
+    * 5.saving the corresponding prediction for each voxels in an image (i.e. 'RFSegOut' image)
+    */
+
+   WMModStripImg->SetRequestedRegionToLargestPossibleRegion();
+   itk::ImageRegionIterator<ImageType> inputIterator(WMModStripImg, WMModStripImg->GetRequestedRegion());
+
+   //creating an output image (i.e. a segmentation image) out of the prediction results.
+   ImagePointer RFSegOutImage=ImageType::New();
+   
+   ImageType::IndexType outStartIdx;
+   outStartIdx.Fill(0);
+
+   ImageType::SizeType outSize=WMModStripImg->GetLargestPossibleRegion().GetSize();
+
+   ImageType::RegionType outRegion;
+   outRegion.SetSize(outSize);
+   outRegion.SetIndex(outStartIdx);
+
+   RFSegOutImage->SetRegions(outRegion);
+   RFSegOutImage->SetDirection(WMModStripImg->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
+   RFSegOutImage->SetSpacing(WMModStripImg->GetSpacing());      //e.g. 2mm*2mm*2mm
+   RFSegOutImage->SetOrigin(WMModStripImg->GetOrigin());
+   RFSegOutImage->Allocate();
+   
+   
+   
+   itk::ImageRegionIterator<ImageType> RFSegOutIterator(RFSegOutImage, outRegion);
+
+//   int patchCount=0;   //FOR TEST
+   while(!inputIterator.IsAtEnd())
+   {
+//      if(patchCount >= testingSamples.size[0])//FOR TEST
+//      {//FOR TEST
+//         inputIterator.GoToEnd();//FOR TEST
+//      }//FOR TEST
+//      else//FOR TEST
+//      {//FOR TEST
+         if(inputIterator.Get() > threshold)                  //the voxels that are not within the threshold (i.e. 0.3 the input image histogram) will be discarded and the corresponding value of 0 will be saved in the segmentation image.
+         {
+            Mat testSample = Mat(1, featuresCount, CV_32FC1);   //the test samples (i.e. the feature vectors) will be passed to the regression model one by one.
+
+            //THE FOLLOWING TWO LINES SHOULD BE UNCOMMENTED when dealing with the actual image, not with the .csv test file
+            ImagePointer patch=GetPatch(WMModStripImg,inputIterator.GetIndex(), 5);      // Note: GetPatch() is used to iterate through all voxels of the image and then to create feature vectors for each voxel patch.
+            CreatePatchFeatureVector(patch,testSample);                           //creates feature vector of the 'patch' and loads it into 'testSample'.
+
+////         CreatePatchFeatureVector(patch,testSample,"<path-to-output-feature-file>",<label>); //FOR CREATING A NEW TRAINING DATA SET
+
+//            testSample=testingSamples.row(patchCount);//FOR TEST
+
+
+            float prediction=RFRegressionModel->predict(testSample, Mat());
+            RFSegOutIterator.Set(std::abs(prediction));
+			//std::cout << "RF OUT: " << prediction << std::endl;
+
+//            if(patchCount % 500 == 0)   //FOR TEST
+//               std::cout << "Done segmenting patch# " << patchCount << "." << std::endl; //FOR TEST
+//
+//            ++patchCount; //FOR TEST
+         }
+         else{
+			RFSegOutIterator.Set(0);   // thresholded voxels of the input image are set to 0 in the output segmentation image.
+			
+		}
+		 
+         ++RFSegOutIterator;
+         ++inputIterator;
+//      }//FOR TEST
+   }//end of iteration through the marginated and thresholded input image
+
+   //saving the Random Forest classifier output image into a .nii file, provided as a command line argument
+   NiftiWriter(RFSegOutImage,rfSegOutFilename);
+   
+   //FOR TEST & DEBUG
+//   std::cout << "Calculating testing data set error..." << std::endl;
+//   CalculateMSE(RFSegOutImage,NiftiReader("<path-to-reference-RFSegOut-nifti-image>"));
+
+   std::cout << "Done WMH segmentation successfully." << std::endl;
+   return RFSegOutImage;
+}//end of ClassifyWMHs()
+
+
+//FOR TEST: 'testingSamples' IS PASSED TO THIS METHOD ONLY WHEN TESTING & DEBUGGING. IN REAL CASES, THESE SAMPLES WILL BE EXTRACTED FROM THE INPUT IMAGES.
+//ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel, int featuresCount,char *rfSegOutFilename, Mat testingSamples)
+ImagePointer ClassifyWMHs2(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel, int featuresCount,char *rfSegOutFilename)
+{
+   std::cout << "Performing WMH segmentation..." << std::endl;
+
+   MarginateImage(WMModStripImg,5);                        //Patch width is 5 voxels. Thus, a margin of size 5 voxels will be discarded to avoid any problems when doing image convolution with kernels.
+
+   /* The image will be rescaled in order to discard the long tail seen in the image histogram (i.e. about 0.3 of the histogram, which contains informationless voxels).
+    * Note: itk::BinaryThresholdImageFilter can be used instead, if it is required to save the thresholded indexes (as in the W2MHS toolbox).
+    */
+   double threshold=0.95*GetHistogramMax(WMModStripImg,127);
 
    /* The following pipeline will be processed to classify all voxels of the input image in the form of a regression model (i.e. closer to -1: less likely to be a WMH voxel. closer to +1: more likely to be a WMH voxel.)
     *
@@ -337,6 +697,20 @@ ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel
 
 
 //   int patchCount=0;   //FOR TEST
+	
+	
+	NeighborhoodIteratorType::RadiusType radius;
+    radius.Fill(2);
+    
+    NeighborhoodIteratorType inputIterator2(radius, WMModStripImg, WMModStripImg->GetRequestedRegion() );
+
+    
+    
+       //get all kernels as a list. Kernels should be calculated first and be used as many times as needed.
+   std::list<ImagePointer> kernels=GetAllKernels();
+    
+    
+	
    while(!inputIterator.IsAtEnd())
    {
 //      if(patchCount >= testingSamples.size[0])//FOR TEST
@@ -347,33 +721,49 @@ ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel
 //      {//FOR TEST
          if(inputIterator.Get() > threshold)                  //the voxels that are not within the threshold (i.e. 0.3 the input image histogram) will be discarded and the corresponding value of 0 will be saved in the segmentation image.
          {
-            Mat testSample = Mat(1, featuresCount, CV_32FC1);   //the test samples (i.e. the feature vectors) will be passed to the regression model one by one.
+			   //the test samples (i.e. the feature vectors) will be passed to the regression model one by one.
 
             //THE FOLLOWING TWO LINES SHOULD BE UNCOMMENTED when dealing with the actual image, not with the .csv test file
-            ImagePointer patch=GetPatch(WMModStripImg,inputIterator.GetIndex(), 5);      // Note: GetPatch() is used to iterate through all voxels of the image and then to create feature vectors for each voxel patch.
-            CreatePatchFeatureVector(patch,testSample);                           //creates feature vector of the 'patch' and loads it into 'testSample'.
-
-////         CreatePatchFeatureVector(patch,testSample,"<path-to-output-feature-file>",<label>); //FOR CREATING A NEW TRAINING DATA SET
-
-//            testSample=testingSamples.row(patchCount);//FOR TEST
-
-
-            float prediction=RFRegressionModel->predict(testSample, Mat());
-            RFSegOutIterator.Set(std::abs(prediction));
-
-
-//            if(patchCount % 500 == 0)   //FOR TEST
-//               std::cout << "Done segmenting patch# " << patchCount << "." << std::endl; //FOR TEST
-//
-//            ++patchCount; //FOR TEST
-         }
-         else
-            RFSegOutIterator.Set(0);   // thresholded voxels of the input image are set to 0 in the output segmentation image.
-
-         ++RFSegOutIterator;
-         ++inputIterator;
-//      }//FOR TEST
-   }//end of iteration through the marginated and thresholded input image
+            ImagePointer patch=GetPatch(WMModStripImg,inputIterator.GetIndex(), 5);
+            
+            
+           //std::cout<<  << std::endl; 
+           
+          //inputIterator2.GetNeighborhood()
+           
+            
+                  // Note: GetPatch() is used to iterate through all voxels of the image and then to create feature vectors for each voxel patch.
+                  
+            Mat testSample = Mat(1, featuresCount, CV_32FC1);
+            CreatePatchFeatureVector(patch,testSample);
+                
+            ImageType::IndexType pixelIndex;
+			pixelIndex[0] = 2;
+			pixelIndex[1] = 2;
+			pixelIndex[2] = 2;
+ 
+			float pixelVal = patch->GetPixel(pixelIndex);    
+            float pixelVal2 = testSample.at<float>(0, 62);
+            float pixelVal3 =  inputIterator.Get();
+            float pixelVal4 = inputIterator2.GetPixel(62);
+            //std::cout<< "patch->GetPixel(pixelIndex) : " <<  pixelVal << " testSample.at<float>(1, 62) :" <<  pixelVal2 << " inputIterator.Get() : " <<  pixelVal3 <<std::endl;
+            std::cout<< ((pixelVal2 == pixelVal3) & (pixelVal2 == pixelVal3) & (pixelVal2 == pixelVal4)) <<std::endl;
+                           
+			if(pixelVal > threshold){           
+				
+				 
+				RFSegOutIterator.Set(1);
+			}else{
+				RFSegOutIterator.Set(0);
+			}
+		 }else{
+			RFSegOutIterator.Set(0);
+		 }
+		 
+		 ++RFSegOutIterator;
+		 ++inputIterator;
+		 ++inputIterator2;
+	}	
 
    //saving the Random Forest classifier output image into a .nii file, provided as a command line argument
    NiftiWriter(RFSegOutImage,rfSegOutFilename);
@@ -385,6 +775,12 @@ ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel
    std::cout << "Done WMH segmentation successfully." << std::endl;
    return RFSegOutImage;
 }//end of ClassifyWMHs()
+
+
+
+
+
+
 
 ImagePointer CreateWMHPmap(ImagePointer rfSegmentedImg, ImagePointer refImg, char *gcFilename, char *pmapFilename)
 {
@@ -411,6 +807,16 @@ ImagePointer CreateWMHPmap(ImagePointer rfSegmentedImg, ImagePointer refImg, cha
    //cleaning up noisy and small detections
 
    unrectifiedPmap->SetRequestedRegionToLargestPossibleRegion();
+   ImageType::SizeType sizes = unrectifiedPmap->GetLargestPossibleRegion().GetSize();
+ 
+   
+   
+   if((sizes[0]*sizes[1]*sizes[2])<10000){ // this technique seems to go weird on my small test files
+			   NiftiWriter(unrectifiedPmap,pmapFilename);   //'unrectifiedPmap' is a rectified pmap at this stage
+
+		}
+
+   
    itk::ImageRegionIterator<ImageType> pmapIterator(unrectifiedPmap, unrectifiedPmap->GetRequestedRegion());
 
    //Note: the .Set() method of ImageSliceIteratorWithIndex didn't work. Otherwise, that type of iteration is a better match and probably more efficient method of iteration here.
@@ -464,11 +870,80 @@ ImagePointer CreateWMHPmap(ImagePointer rfSegmentedImg, ImagePointer refImg, cha
          }//end of for iterating through objects of the pmap slice
       }//end of if checking whether there are any objects in the current slice of 'gc'
    }//end of iterating through slices of 'rfSegmentedImg'
+   
+   
+   std::cout << "WMH probability map is saved into: " << pmapFilename << std::endl;
+   
+    if((sizes[0]*sizes[1]*sizes[2])>=10000){
+       NiftiWriter(unrectifiedPmap,pmapFilename);   //'unrectifiedPmap' is a rectified pmap at this stage
+    }
+   
+   
+   return unrectifiedPmap;
+}//end of CreateWMHPmap()
+
+
+ImagePointer CreateWMHPmapLR(ImagePointer rfSegmentedImg, char *pmapFilename)
+{
+   std::cout << "Creating WMH probability map...THE OLD FASHIONED WAY" << std::endl;
+
+
+	rfSegmentedImg->SetRequestedRegionToLargestPossibleRegion();
+    itk::ImageRegionIterator<ImageType> inputIterator(rfSegmentedImg, rfSegmentedImg->GetRequestedRegion());
+	ImageType::SizeType outSize=rfSegmentedImg->GetLargestPossibleRegion().GetSize();
+	ImageType::IndexType outStartIdx;
+    outStartIdx.Fill(0);
+	
+	//creating an output image of the prediction results.
+   ImagePointer unrectifiedPmap=ImageType::New();
+
+   ImageType::RegionType outRegion;
+   outRegion.SetSize(outSize);
+   outRegion.SetIndex(outStartIdx);
+
+   unrectifiedPmap->SetRegions(outRegion);
+   unrectifiedPmap->SetDirection(rfSegmentedImg->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
+   unrectifiedPmap->SetSpacing(rfSegmentedImg->GetSpacing());      //e.g. 2mm*2mm*2mm
+   unrectifiedPmap->SetOrigin(rfSegmentedImg->GetOrigin());
+   unrectifiedPmap->Allocate();
+  
+   itk::ImageRegionIterator<ImageType> pmapIter(unrectifiedPmap, outRegion);
+    
+	
+   while(!inputIterator.IsAtEnd())
+   {
+	//placeholder until I can get a real LR set up. needs both -1 to +1 rgression output but also pure classification from RF model which in the CVrTrees framework means retraining.
+    pmapIter.Set(((inputIterator.Get()+1.0)/2.0));
+  
+  
+	++inputIterator;
+	++pmapIter;
+   }
+  
    NiftiWriter(unrectifiedPmap,pmapFilename);   //'unrectifiedPmap' is a rectified pmap at this stage
    std::cout << "WMH probability map is saved into: " << pmapFilename << std::endl;
 
    return unrectifiedPmap;
 }//end of CreateWMHPmap()
+
+ImagePointer CreateWMHPmapN(ImagePointer rfSegmentedImg, char *pmapFilename)
+{
+   std::cout << "Creating WMH probability map...NORMALIZATION" << std::endl;
+
+   ImagePointer unrectifiedPmap = MinMaxNormalisation(rfSegmentedImg);
+   NiftiWriter(unrectifiedPmap,pmapFilename);   //'unrectifiedPmap' is a rectified pmap at this stage
+   std::cout << "WMH probability map is saved into: " << pmapFilename << std::endl;
+
+   return unrectifiedPmap;
+}//end of CreateWMHPmap()
+
+
+
+
+
+
+
+
 
 void QuantifyWMHs(float pmapCut, ImagePointer pmapImg, char *ventricleFilename, char *outputFilename)
 {
@@ -929,11 +1404,23 @@ bool LoadTestingDataset(const char* testingFilename, Mat testingFeatures, Mat te
 }//end of LoadTrainingDataset()
 
 
-CvRTrees* GenOrLoadRFModel(const char* modelFilename, Mat trainingFeatures, Mat trainingLabels,bool toGenerate)
+CvRTrees* GenOrLoadRFModel(const char* modelFilename)
 {
    CvRTrees* rfModel=new CvRTrees();
-   if(toGenerate)
-   {
+   
+      std::cout << "Loading RF model: " << modelFilename << "..." << std::endl;
+      rfModel->load(modelFilename,"envisionRFModel");      //loads the pre-generated and saved RF model
+   
+
+   std::cout << "RF model (" << modelFilename << ") generated/loaded successfully!" << std::endl;
+   return rfModel;
+}// end of GenOrLoadRFModel()
+
+
+CvRTrees* GenOrLoadRFModel(const char* modelFilename, Mat trainingFeatures, Mat trainingLabels)
+{
+   CvRTrees* rfModel=new CvRTrees();
+   
       std::cout << "Generating RF model..." << std::endl;
 
       Mat var_type = Mat(trainingFeatures.size[1] + 1, 1, CV_8U);         //CV_8UC1 means a 8-bit single-channel array
@@ -942,7 +1429,7 @@ CvRTrees* GenOrLoadRFModel(const char* modelFilename, Mat trainingFeatures, Mat 
                                                          //for regression: set to CV_VAR_ORDERED
       /* CvRTParams constructor parameters are as follows:
        * 1.max depth of trees,
-       * 2.min sample count ('minparent' in Matlab's stochastic_bosque()),
+       * 2.min sample count ('minparent' in Matlab's stochastic_bosque
        * 3.regression accuracy,
        * 4.compute surrogate split (no missing data),
        * 5.max number of categories (use sub-optimal algorithm for larger numbers),
@@ -967,18 +1454,40 @@ CvRTrees* GenOrLoadRFModel(const char* modelFilename, Mat trainingFeatures, Mat 
 
          //saving the Random Forest regressionmodel into an .xml file.
          rfModel->save(modelFilename,"envisionRFModel");
-   }//end of if "toGenerate"
-   else
-   {
-      std::cout << "Loading RF model: " << modelFilename << "..." << std::endl;
-      rfModel->load(modelFilename,"envisionRFModel");      //loads the pre-generated and saved RF model
-   }
-
+   
+   
    std::cout << "RF model (" << modelFilename << ") generated/loaded successfully!" << std::endl;
    return rfModel;
 }// end of GenOrLoadRFModel()
 
+
+
+
 ImagePointer NiftiReader(char *inputFile)
+{
+   typedef itk::ImageFileReader<ImageType> ImageReaderType;
+   itk::NiftiImageIO::Pointer niftiIO=itk::NiftiImageIO::New();
+   ImageReaderType::Pointer imageReader=ImageReaderType::New();
+   ImagePointer output;
+   try
+   {
+      niftiIO->SetFileName(inputFile);
+      niftiIO->ReadImageInformation();
+
+      imageReader->SetImageIO(niftiIO);
+      imageReader->SetFileName(niftiIO->GetFileName());
+      output=imageReader->GetOutput();
+      output->Update();
+      std::cout << "Successfully read: " << inputFile << std::endl;
+   }
+   catch(itk::ExceptionObject &)
+   {
+      std::cerr << "Failed to read: " << inputFile << std::endl;
+   }
+   return output;
+}//end of NiftiReader()
+
+ImagePointer NiftiReader(std::string inputFile)
 {
    typedef itk::ImageFileReader<ImageType> ImageReaderType;
    itk::NiftiImageIO::Pointer niftiIO=itk::NiftiImageIO::New();
@@ -1383,6 +1892,32 @@ ImagePointer ConvolveImage(ImagePointer input,ImagePointer kernel,bool normalise
    return output;
 }
 
+
+ImagePointer ConvolveImage2(ImagePointer  patch,ImagePointer kernel)
+{
+   ConvolutionType::Pointer convolution = ConvolutionType::New();
+    ImagePointer output;
+    try
+    {
+      convolution->SetInput(patch);
+      #if ITK_VERSION_MAJOR >= 4
+         convolution->SetKernelImage(kernel);
+      #else
+         convolutionFilter->SetImageKernelInput(kernel);
+      #endif
+           
+      output=convolution->GetOutput();
+      output->Update();
+      
+    }
+    catch(itk::ExceptionObject & ex)
+    {
+       std::cerr << "A problem occured when performing image convolution!" << std::endl;
+
+    }
+    return output;
+}
+
 void MarginateImage(ImagePointer input,int marginWidth)
 {
    //Note: itk::CropImageFilter hasn't been used for this purpose, as it throws away the cropped margin (which is not what we need here).
@@ -1452,10 +1987,14 @@ void WriteImageFeatureVectorToFile(ImagePointer input,bool newPatch,char* output
    featuresFile.close();
 }//end of WriteImageFeatureVectorToFile()
 
-void AppendToPatchFeatureVector(ImagePointer patch,Mat patchFeatureMat, int startIdx)
+void AppendToPatchFeatureVector(ImagePointer patch, Mat patchFeatureMat, int startIdx)
 {
    patch->SetRequestedRegionToLargestPossibleRegion();
-   itk::ImageRegionIterator<ImageType> patchIterator(patch, patch->GetRequestedRegion());
+   
+   //itk::ImageRegionIterator<ImageType> patchIterator(patch, patch->GetRequestedRegion());
+   //itk::ImageLinearIteratorWithIndex<ImageType> patchIterator(patch, patch->GetRequestedRegion());
+   itk::ImageRegionIteratorWithIndex<ImageType> patchIterator(patch, patch->GetRequestedRegion());
+   
    while(!patchIterator.IsAtEnd())
    {
       patchFeatureMat.at<float>(0,startIdx)=patchIterator.Get();
@@ -1468,6 +2007,7 @@ void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat)
 {
    //get all kernels as a list. Kernels should be calculated first and be used as many times as needed.
    std::list<ImagePointer> kernels=GetAllKernels();
+   
    int startIdx=0;      //this is to tell the AppendToPatchFeatureVector(), where to add new features
    //get voxel intensities of each voxel of the path and add them to the feature vector of the patch
    AppendToPatchFeatureVector(patch,patchFeatureMat,startIdx);
@@ -1494,6 +2034,43 @@ void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat)
       //
       AppendToPatchFeatureVector(convolvedImg,patchFeatureMat,startIdx);
    }
+}//end of CreatePatchFeatureVector()
+
+void CreatePatchFeatureVectorN(NeighborhoodType patch, Mat patchFeatureMat, std::list<ImagePointer> kernels)
+{
+	////get all kernels as a list. Kernels should be calculated first and be used as many times as needed.
+    //int startIdx=0;      //this is to tell the AppendToPatchFeatureVector(), where to add new features
+	////get voxel intensities of each voxel of the path and add them to the feature vector of the patch
+	
+	
+	
+	//AppendToPatchFeatureVector(patch,patchFeatureMat,startIdx);
+	
+	//for (std::list<ImagePointer>::iterator kernelsIterator=kernels.begin(); kernelsIterator!=kernels.end(); ++kernelsIterator)
+    //{
+     //startIdx+=(patch->GetLargestPossibleRegion().GetSize()[0]*patch->GetLargestPossibleRegion().GetSize()[1]*patch->GetLargestPossibleRegion().GetSize()[2]);
+     
+     //ImagePointer convolvedImg = ConvolveImage2(patch->GetNeighborhood(),*kernelsIterator);
+     
+     //int kernelIdx=distance(kernels.begin(), kernelsIterator);
+     //int scalediv=1;
+     //if(kernelIdx == kernels.size()-1)
+            //scalediv=3;
+     //int kernelWidth=kernelsIterator->GetPointer()->GetLargestPossibleRegion().GetSize()[0];
+     //convolvedImg=DivideImageByConstant(convolvedImg,scalediv*std::pow(kernelWidth,3));
+
+         //if(kernelIdx >= 2 && kernelIdx <= 7)
+            //convolvedImg=AddImageToImage(convolvedImg,patch,false);
+         //else if(kernelIdx >= 8 && kernelIdx <= 13)
+            //convolvedImg=AddImageToImage(convolvedImg,patch,true);
+      ////
+     //AppendToPatchFeatureVector(convolvedImg,patchFeatureMat,startIdx);
+     
+	 
+	
+
+	//}
+ 
 }//end of CreatePatchFeatureVector()
 
 /*
@@ -1728,3 +2305,193 @@ void CalculateMSE(ImagePointer img1,ImagePointer img2)
    }
    std::cout << "MSE=\t" << MSE/voxelCount << std::endl;
 }//end of CalculateMSE()
+
+
+Mat getFeatureVector(ImagePointer WMModStripImg, ImagePointer BRAVOImg, int featuresCount)
+{
+   std::cout << "generating feature matrix" << std::endl;
+	Mat testSample = Mat(1, featuresCount, CV_32FC1); 
+	
+   MarginateImage(WMModStripImg,5);                        //Patch width is 5 voxels. Thus, a margin of size 5 voxels will be discarded to avoid any problems when doing image convolution with kernels.
+   MarginateImage(BRAVOImg,5); 
+
+   WMModStripImg->SetRequestedRegionToLargestPossibleRegion();
+   BRAVOImg->SetRequestedRegionToLargestPossibleRegion();
+   
+   itk::ImageRegionIterator<ImageType> inputIterator(WMModStripImg, WMModStripImg->GetRequestedRegion());
+   itk::ImageRegionIterator<ImageType> inputIteratorBRAVO(BRAVOImg, BRAVOImg->GetRequestedRegion());  
+   
+   Mat outMat = Mat(0, 2, CV_32FC1);  
+   
+   //inputIterator.GoToBegin();
+   //inputIteratorB.GoToBegin();
+   
+   //double threshold=0.3*GetHistogramMax(WMModStripImg,127);
+   Mat M = Mat(0, 2, CV_32FC1); 
+   
+   std::cout << "begin loop" << std::endl;
+   
+   while(!inputIterator.IsAtEnd()){
+		//if(inputIterator.Get() > threshold)                  //the voxels that are not within the threshold (i.e. 0.3 the input image histogram) will be discarded and the corresponding value of 0 will be saved in the segmentation image.
+         //{
+
+			//std::cout <<  inputIterator.Get() << "  " << inputIteratorBRAVO.Get()  << std::endl;
+			Mat Temp = Mat(1, 2, CV_32FC1);
+			Temp.at<float>(0,1)=inputIteratorBRAVO.Get();
+			Temp.at<float>(0,0)=inputIterator.Get();
+	    
+			outMat.push_back(Temp);
+			++inputIterator;
+			++inputIteratorBRAVO;
+	   //}
+   }
+
+   
+
+   std::cout << "Done feature production! "<< std::endl;
+   return outMat;
+}//end of ClassifyWMHs()
+
+void ReadSubFolders(char * folderName, char *subFolder)
+{
+   //NOTE: This method is particularly implemented to work with the "folder names", which are being used in the W2MHS toolbox.
+
+   //iterate through all sub-folders of the main directory, which consists of the WM_... images and the pmap images of subjects in separate folders
+   //~ std::ifstream list(foldersList);
+   //~ if(!list)
+   //~ {
+      //~ std::cerr << "Cannot read file: " <<  foldersList << std::endl;
+      //~ return;
+   //~ }
+   //~ else
+   //~ {
+      
+         //subfolder="out_..." at this point
+         string subFolderID=subFolder;
+         string general=folderName+subFolderID;
+         subFolderID=subFolderID.erase(0,4);      //keeps the substring after "out_"
+         
+         std::cout<< general <<std::endl;
+         string WMname=general+"/WM_modstrip_"+subFolderID+".nii.gz";
+         string PMAPname=general+"/RFREG_pmap_"+subFolderID+".nii.gz";
+         string Segoutname=general+"/RFREG_out_"+subFolderID+".nii.gz";
+         string featuresName=general+"/trainingFeatures_"+subFolderID+".csv";
+         CreateTrainingDataset((char *)WMname.c_str(),(char*)PMAPname.c_str(),(char*)Segoutname.c_str(),(char*)featuresName.c_str());
+
+         std::cout << "Training feature set " << subFolder << " created successfully!" << std::endl;
+      
+   //}
+}//end of ReadSubFolders()
+
+void CreateTrainingDataset(char* WMFilename,char* pmapFilename,char* segoutFilename,char* featuresFilename)
+{
+
+   double minNO=0;
+   double maxNO=0.699;
+   double minYES=0.7;   //0.7 is the gamma value suggested by Kristan. As the RFREG_out images are generated by his modified code, then this threshold will probably works better for creating a training dataset out of W2MHS outputs
+   double maxYES=1;
+   //
+   ImagePointer wmNifti=NiftiReader(WMFilename);
+   ImagePointer pmapNifti=NiftiReader(pmapFilename);
+   ImagePointer segoutNifti=NiftiReader(segoutFilename);
+
+   MarginateImage(wmNifti,5);      //patch width is 5
+   double threshold=0.3*GetHistogramMax(wmNifti,127);      //this is based on what has been done in the W2MHS toolbox
+   //1.iterating through the thresholded voxels
+   //2.creating patches for each voxel
+   //3.extracting features for each patch
+   wmNifti->SetRequestedRegionToLargestPossibleRegion();
+   itk::ImageRegionIterator<ImageType> inputIterator(wmNifti, wmNifti->GetRequestedRegion());
+
+   pmapNifti->SetRequestedRegionToLargestPossibleRegion();
+   itk::ImageRegionIterator<ImageType> pmapIterator(pmapNifti, pmapNifti->GetRequestedRegion());
+
+   segoutNifti->SetRequestedRegionToLargestPossibleRegion();
+   itk::ImageRegionIterator<ImageType> segoutIterator(segoutNifti, segoutNifti->GetRequestedRegion());
+
+   while(!inputIterator.IsAtEnd())
+   {
+      if(inputIterator.Get() > threshold)
+      {
+         double classLabel=pmapIterator.Get();
+//         double segoutVal=segoutIterator.Get();
+//         if((segoutVal==1 && classLabel<maxNO) || (segoutVal!=1 && classLabel>minYES))
+//         {
+//            if(segoutVal==1 && classLabel<maxNO)
+//            {
+//               classLabel=-1;
+//            }
+//            if(segoutVal!=1 && classLabel>minYES)
+//            {
+//               classLabel=1;
+//            }
+
+
+
+      //         if(classLabel > minNO)
+      //         {
+      //         if((classLabel > minNO && classLabel <= maxNO) || (classLabel >= minYES && classLabel <= maxYES))
+      //         {
+      //            if(classLabel > minNO && classLabel <= maxNO)
+      //               classLabel=-1;
+      //            else    //if(pmapIntensity >= minYES && pmapIntensity <= maxYES)
+      //               classLabel=1;
+
+      //               if(classLabel >= 0.5)
+      //                  classLabel=1;
+      //               else if(classLabel < 0.5)   //if(pmapIntensity >= minYES && pmapIntensity <= maxYES)
+      //                  classLabel=-1;
+                  ImagePointer patch=GetPatch(wmNifti,inputIterator.GetIndex(), 5);
+                  Mat testSample = Mat(1, 2000, CV_32FC1);//NOT BEING USED HERE
+                  CreatePatchFeatureVector(patch,testSample,featuresFilename,classLabel);
+      //         }
+      //         }
+//         }
+      }
+      ++inputIterator;
+      ++pmapIterator;
+      ++segoutIterator;
+   }//end of iteration through the marginated and thresholded input image
+}//end of CreateTrainingDataset()
+
+void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat, char* outputFilename,float classLabel)
+{
+   //NOTE: THIS METHOD OVERLOAD IS USED WHEN IT IS REQUIRED TO SAVE THE FEATURE VECTORS TOGHETHER WITH THEIR CORRESPONDING "CLASSLABEL" INTO A FILE.
+   //      THIS IS NOW BEING USED WHEN CREATING A TRAINING DATASET.
+
+
+   //get all kernels as a list. Kernels should be calculated first and be used as many times as needed.
+   std::list<ImagePointer> kernels=GetAllKernels();
+   int startIdx=0;      //this is to tell the AppendToPatchFeatureVector(), where to add new features
+   //get voxel intensities of each voxel of the path and add them to the feature vector of the patch
+   WriteImageFeatureVectorToFile(patch,true,outputFilename);
+
+   for (std::list<ImagePointer>::iterator kernelsIterator=kernels.begin(); kernelsIterator!=kernels.end(); ++kernelsIterator)
+   {
+      startIdx+=(patch->GetLargestPossibleRegion().GetSize()[0]*patch->GetLargestPossibleRegion().GetSize()[1]*patch->GetLargestPossibleRegion().GetSize()[2]);
+      //1. convolve the patch with all the kernels one by one
+      //2. get values of the returned convolved image and add them to the feature vector of the patch
+      ImagePointer convolvedImg=ConvolveImage(patch,*kernelsIterator,false);
+      //NOTE: some scaling has been done on the convolved image in the W2MHS toolbox, which are done here.
+      //      When we can get our own ground truth data, we may not need to do these necessarily.
+         int kernelIdx=distance(kernels.begin(), kernelsIterator);
+         int scalediv=1;
+         if(kernelIdx == kernels.size()-1)
+            scalediv=3;
+         int kernelWidth=kernelsIterator->GetPointer()->GetLargestPossibleRegion().GetSize()[0];
+         convolvedImg=DivideImageByConstant(convolvedImg,scalediv*std::pow(kernelWidth,3));
+
+         if(kernelIdx >= 2 && kernelIdx <= 7)
+            convolvedImg=AddImageToImage(convolvedImg,patch,false);
+         else if(kernelIdx >= 8 && kernelIdx <= 13)
+            convolvedImg=AddImageToImage(convolvedImg,patch,true);
+      //
+      WriteImageFeatureVectorToFile(convolvedImg,false,outputFilename);
+   }//end of iterating through kernels list
+
+   //writing the "classLabel at the end of the 'feature vector' row.
+   std::ofstream featuresFile;
+   featuresFile.open(outputFilename,std::ios::app);
+   featuresFile << classLabel << ",";
+   featuresFile.close();
+}//end of CreatePatchFeatureVector()
