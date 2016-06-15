@@ -1052,7 +1052,8 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		
 		if(k !=0){
 			df_eq_func rootFun = df_eq_func(v_sum);
-			std::pair<double, double>  r1= tools::bisect(rootFun, a, b, tol, df_max_iter);
+			std::pa
+I just ir<double, double>  r1= tools::bisect(rootFun, a, b, tol, df_max_iter);
 			v = (r1.first + r1.second)/2.0; 
 		}
 		
@@ -1103,8 +1104,11 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		
 		for(int i=0; i<c; i++){		
 			double temp  = inputIterator.GetPixel(i);
-			acc += temp;
-			if(temp>0){++non_zero;}
+			if(i != (c/2))
+			{
+				acc += temp;
+				if(temp>0){++non_zero;}
+			}
 		
 		}	
 		neighbourhood_mean = acc/non_zero;			       
@@ -1307,8 +1311,12 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		
 		for(int i=0; i<c; i++){		
 			double temp  = inputIterator.GetPixel(i);
-			acc += temp;
-			if(temp>0){++non_zero;}
+			
+			if(i != (c/2))
+			{
+				acc += temp;
+				if(temp>0){++non_zero;}
+			}
 		
 		}	
 		neighbourhood_mean = acc/non_zero;			       
