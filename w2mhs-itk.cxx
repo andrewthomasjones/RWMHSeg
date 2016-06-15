@@ -1052,8 +1052,7 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		
 		if(k !=0){
 			df_eq_func rootFun = df_eq_func(v_sum);
-			std::pa
-I just ir<double, double>  r1= tools::bisect(rootFun, a, b, tol, df_max_iter);
+			std::pair<double, double>  r1= tools::bisect(rootFun, a, b, tol, df_max_iter);
 			v = (r1.first + r1.second)/2.0; 
 		}
 		
