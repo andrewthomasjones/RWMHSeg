@@ -1,7 +1,5 @@
 #!/bin/bash 
 
-
-
 #input description #
 # -m RF model file
 # -w stripped white matter only image .nii
@@ -20,6 +18,9 @@
 SAMPLE="m013126" #sample name 
 RFMOD="/data/home/uqajon14/w2mhs-itk/envisionRFModel_3107_4242.xml" #presaved RF model file
 PMAPCUT="0.5"  #cut-off for pmap for calulating volume 
+P_THRESH="0.02"  #cut-off for t-dist model
+D_THRESH="1.4"  #cut-off for m-estimator robust normal model
+MIN_N="3"  #min. neighbours new models
 
 OUTFOLD="/data/home/uqajon14/Output/" #output base folde, will save like ~/Output/m013126/. code does NOT create new folders and does not WARN. To be fixed.
 BASEFOLD="/data/home/uqajon14/TrainingData/CAI_itk_w2mhs/itk_data/out_"  #input base folder i.e. "~/TrainingData/CAI_itk_w2mhs/itk_data/out_m013126/"
@@ -29,6 +30,6 @@ MYFOLD=$OUTFOLD$SAMPLE"/"
 
 cd ~/w2mhs-itk/build #location of executable
 
-./w2mhs-itk -m $RFMOD -w $SAMPLEFOLD"WM_modstrip_"$SAMPLE".nii" -g $SAMPLEFOLD"GMCSF_strip_"$SAMPLE".nii" -v $SAMPLEFOLD"Vent_bin_"$SAMPLE".nii" -s $MYFOLD"WMHSeg_"$SAMPLE".nii" -p $MYFOLD"WMHProb_"$SAMPLE".nii" -q $MYFOLD"Results_"$SAMPLE".txt" -c $PMAPCUT
+./w2mhs-itk -w $SAMPLEFOLD"WM_modstrip_"$SAMPLE".nii" -g $SAMPLEFOLD"GMCSF_strip_"$SAMPLE".nii" -v $SAMPLEFOLD"Vent_bin_"$SAMPLE".nii" -s $MYFOLD"WMHSeg_"$SAMPLE".nii" -q $MYFOLD"Results_"$SAMPLE".txt" -x $P_THRESH -d $D_THRESH -n $MIN_N
 
 
