@@ -382,8 +382,9 @@ int main(int argc, char *argv[])
 				
 			}
 			
-			if (vm.count("o")){ //feature output mode
+			if (vm.count("out")){ //feature output mode
 				try{
+					
 					justGetFeat = true;
 					WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >()); 
 					quantResultFilename2 = vecToString(vm["out"].as< vector<string> >()); 
@@ -452,8 +453,10 @@ int main(int argc, char *argv[])
 		
 		//returns features
 		if(justGetFeat)
-		{
-			getFeatureOut(WMStrippedFilename, BRAVOFilename, WMMaskFilename, quantResultFilename, numberOfFeatures );
+		{  	
+			std::cout << "processing... "  << std::endl;
+			getFeatureOut(WMStrippedFilename, BRAVOFilename, WMMaskFilename, quantResultFilename2, numberOfFeatures );
+			std::cout << "features saved in: " << quantResultFilename2 << std::endl;
 			return 0;
 		}
 		
@@ -652,14 +655,22 @@ void ShowCommandLineHelp()
 
 void getFeatureOut(std::string WMStrippedFilename, std::string BRAVOFilename,std::string WMMaskFilename, std::string quantResultFilename2,int numberOfFeatures ){
 	std::cout << "opening file: " << WMStrippedFilename << std::endl;
-	std::cout << "rreading in image" << std::endl;
+	std::cout << "reading in image" << std::endl;
 
 	ImagePointer inNifti=NiftiReader(WMStrippedFilename);
 	ImagePointer inNifti2=NiftiReader(BRAVOFilename);
 	ImagePointer inNiftiM=NiftiReader(WMMaskFilename);
 
-	//Mat featMat =  getFeatureVector(inNifti,inNifti2b, numberOfFeatures);
+
+	MaskFilterType::Pointer maskFilter = MaskFilterType::New();
+	
+	maskFilter->SetInput(inNifti2);
+	maskFilter->SetMaskImage(inNiftiM);
+    maskFilter->Update();
+    
+	//Mat featMat =  getFeatureVector(inNifti,inNifti2, 2000);
 	Mat locMat =  getLocationVector(inNifti);
+	Mat locMat2 =  getLocationVector(maskFilter->GetOutput());
 
 	std::cout << "save out...." << std::endl;
 			
@@ -672,6 +683,22 @@ void getFeatureOut(std::string WMStrippedFilename, std::string BRAVOFilename,std
 			myfile.close();
             //myfile.close();
 	std::cout << "DONE!" << std::endl;
+	
+	std::cout << "save out...." << std::endl;
+			
+			std::ofstream myfile2;
+			myfile2.open(renamer(quantResultFilename2, "_bravo"));
+						
+			//myfile << format(featMat, "CSV") << std::endl;
+			myfile2 << format(locMat2, "CSV") << std::endl;
+			
+			myfile2.close();
+            //myfile.close();
+	std::cout << "DONE!" << std::endl;
+	
+	
+	
+	
   
 }
 
@@ -2770,16 +2797,29 @@ Mat getLocationVector(ImagePointer WMModStripImg)
 			
 			
 			ImageType::IndexType tempIndex = inputIterator.GetIndex();
+			double acc = 0.0;
+			double neighbourhood_mean = 0.0;
+			int non_zero = 0;
+			int c = (inputIterator.Size());
 			
-			
-				float accum = 0.0;
-				for (unsigned int i = 0; i < inputIterator.Size(); ++i)
-				{    
-					accum += inputIterator.GetPixel(i);  
+			for(int i=0; i<c; i++){		
+				double temp  = inputIterator.GetPixel(i);
+				
+				if(i != (c/2))
+				{
+					acc += temp;
+					if(temp>0){++non_zero;}
 				}
-				Temp.at<float>(0,1)=(accum/(float)(inputIterator.Size()));
 			
-			
+			}	
+			if(non_zero == 0) {
+				neighbourhood_mean = 0.0;
+			}else{
+				neighbourhood_mean = acc/non_zero;
+			}
+				
+			Temp.at<float>(0,1)=neighbourhood_mean;
+					
 			
 			
 			Temp.at<float>(0,2)=tempIndex[0];
