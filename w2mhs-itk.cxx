@@ -111,7 +111,6 @@ ImagePointer InvertImage(ImagePointer input, int maximum);
 double GetHistogramMax(ImagePointer inputImage,unsigned int binsCount);
 ImagePointer ThresholdImage(ImagePointer input, float lowerThreshold, float upperThreshold);
 ImagePointer2D BinarizeThresholdedImage(ImagePointer2D input2D, float lowerThreshold, float upperThreshold);
-
 ImagePointer2D Get2DBinaryObjectsBoundaries(ImagePointer2D input);
 ImagePointer2D Get2DSlice(ImagePointer input3D,int plane, int slice);
 std::vector<ImageType2D::IndexType> FindIndicesByIntensity(ImagePointer2D input,float intensity);
@@ -140,16 +139,10 @@ ImagePointer ClassifyWMHs(ImagePointer WMModStripImg, std::string rfSegOutFilena
 ImagePointer CreateWMHPmap(ImagePointer rfSegmentedImg, ImagePointer refImg, std::string gcFilename, std::string pmapFilename);
 void QuantifyWMHs(float pmapCut, ImagePointer pmapImg, std::string ventricleFilename, std::string outputFilename);
 
-////For training
-//void ReadSubFolders(char * folderName,const char *foldersList);
-//void CreateTrainingDataset(char* WMFilename,char* pmapFilename,char* segoutFilename,char* featuresFilename);
 
 ////FOR TEST
 void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat,std::string outputFilename,float classLabel);   //FOR TESTING AND DEBUGGING
 void CalculateMSE(ImagePointer img1,ImagePointer img2);
-//void PerformanceTest(std::string message);
-//void CreatePatchFeatureVectorN(NeighborhoodType patch, Mat patchFeatureMat);
-
 
 
 //New functions - Andy 2016
@@ -470,35 +463,7 @@ int main(int argc, char *argv[])
 			std::cout<< "quant :  " << quantResultFilename  << std::endl;
 			std::cout<< "seg :  " << segOutFilename  << std::endl;
 			std::cout<< "pmap :  " << pmapOutFilename  << std::endl;
-		   
-			//       LoadTestingDataset("<path-to-.csv-test-file>",testingSamples,testingLabels,numberOfTestingSamples,numberOfFeatures);   //NOTE: THIS IS ONLY FOR TEST & DEBUG PURPOSES, WHEN WE HAVE A PRE-EXTRACTED TESTING DATA SET FROM THE MRI SCANS.
-
-			//Note: the following block of code can be used to calculate MSE, when the 'labels' are saved in the testing data set as the last column.
-			//       If not, 'CalculateMSE()' can be used.
-			//       std::cout << "Calculating testing data set error..." << std::endl;
-			//       float MSE=0;
-			//       for(int i=0; i<numberOfTestingSamples; ++i)
-			//       {
-			//          float prediction=rfModel->predict(testingSamples.row(i), Mat());
-			//          float actual=testingLabels.at<float>(i,0);
-			//
-			//         MSE+=std::pow(prediction - actual,2);
-			//       }
-			//       std::cout << "MSE=\t" << MSE/numberOfTestingSamples << std::endl;
-
-
-
-			//       std::cout << "Calculating training error..." << std::endl;
-			//       float MSE=0;
-			//      for(int i=0; i<numberOfTrainingSamples; ++i)
-			//      {
-			//         float prediction=rfModel->predict(trainingSamples.row(i), Mat());
-			//         float actual=trainingLabels.at<float>(i,0);
-			//         MSE+=std::pow(prediction - actual,2);
-			//      }
-			//      std::cout << "MSE=\t" << MSE/numberOfTrainingSamples << std::endl;
-
-			
+		   		
 			ImagePointer inNifti=NiftiReader(WMStrippedFilename);
 			//inNifti->SetReleaseDataFlag(true);      //Turn on/off the flags to control whether the bulk data belonging to the outputs of this ProcessObject are released after being used by a downstream ProcessObject. Default value is off. Another options for controlling memory utilization is the ReleaseDataBeforeUpdateFlag.
 			
@@ -647,15 +612,6 @@ void getFeatureOut(std::string WMStrippedFilename, std::string BRAVOFilename,std
 	ImagePointer inNifti=NiftiReader(WMStrippedFilename);
 	ImagePointer inNifti2=NiftiReader(BRAVOFilename);
 	ImagePointer inNiftiM=NiftiReader(WMMaskFilename);
-
-	//MaskFilterType::Pointer maskFilter = MaskFilterType::New();
-	//maskFilter->SetInput(inNifti2);
-	//maskFilter->SetMaskImage(inNiftiM);
-	//maskFilter->Update();
-	//ImagePointer inNifti2b = maskFilter->GetOutput();
-
-	//NiftiWriter(inNifti2b,"/data/home/uqajon14//TrainingData/CAI_itk_w2mhs/itk_data/test.nii" );
-
 
 	//Mat featMat =  getFeatureVector(inNifti,inNifti2b, numberOfFeatures);
 	Mat locMat =  getLocationVector(inNifti);
@@ -1479,66 +1435,6 @@ ImagePointer CreateWMHPmap(ImagePointer rfSegmentedImg, ImagePointer refImg, std
 }//end of CreateWMHPmap()
 
 
-//ImagePointer CreateWMHPmapLR(ImagePointer rfSegmentedImg, char *pmapFilename)
-//{
-   //std::cout << "Creating WMH probability map...THE OLD FASHIONED WAY" << std::endl;
-
-
-	//rfSegmentedImg->SetRequestedRegionToLargestPossibleRegion();
-    //itk::ImageRegionIterator<ImageType> inputIterator(rfSegmentedImg, rfSegmentedImg->GetRequestedRegion());
-	//ImageType::SizeType outSize=rfSegmentedImg->GetLargestPossibleRegion().GetSize();
-	//ImageType::IndexType outStartIdx;
-    //outStartIdx.Fill(0);
-	
-	////creating an output image of the prediction results.
-   //ImagePointer unrectifiedPmap=ImageType::New();
-
-   //ImageType::RegionType outRegion;
-   //outRegion.SetSize(outSize);
-   //outRegion.SetIndex(outStartIdx);
-
-   //unrectifiedPmap->SetRegions(outRegion);
-   //unrectifiedPmap->SetDirection(rfSegmentedImg->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
-   //unrectifiedPmap->SetSpacing(rfSegmentedImg->GetSpacing());      //e.g. 2mm*2mm*2mm
-   //unrectifiedPmap->SetOrigin(rfSegmentedImg->GetOrigin());
-   //unrectifiedPmap->Allocate();
-  
-   //itk::ImageRegionIterator<ImageType> pmapIter(unrectifiedPmap, outRegion);
-    
-	
-   //while(!inputIterator.IsAtEnd())
-   //{
-	////placeholder until I can get a real LR set up. needs both -1 to +1 rgression output but also pure classification from RF model which in the CVrTrees framework means retraining.
-    //pmapIter.Set(((inputIterator.Get()+1.0)/2.0));
-  
-  
-	//++inputIterator;
-	//++pmapIter;
-   //}
-  
-   //NiftiWriter(unrectifiedPmap,pmapFilename);   //'unrectifiedPmap' is a rectified pmap at this stage
-   //std::cout << "WMH probability map is saved into: " << pmapFilename << std::endl;
-
-   //return unrectifiedPmap;
-//}//end of CreateWMHPmap()
-
-//ImagePointer CreateWMHPmapN(ImagePointer rfSegmentedImg, char *pmapFilename)
-//{
-   //std::cout << "Creating WMH probability map...NORMALIZATION" << std::endl;
-
-   //ImagePointer unrectifiedPmap = MinMaxNormalisation(rfSegmentedImg);
-   //NiftiWriter(unrectifiedPmap,pmapFilename);   //'unrectifiedPmap' is a rectified pmap at this stage
-   //std::cout << "WMH probability map is saved into: " << pmapFilename << std::endl;
-
-   //return unrectifiedPmap;
-//}//end of CreateWMHPmap()
-
-
-
-
-
-
-
 
 
 void QuantifyWMHs(float pmapCut, ImagePointer pmapImg, std::string ventricleFilename, std::string outputFilename)
@@ -1823,111 +1719,6 @@ ImagePointer2D Get2DSlice(ImagePointer input3D,int plane, int slice)
 
    return output2D;
 }//end of Get2DSlice()
-
-/*void ReadSubFolders(char * folderName,const char *foldersList)
-{
-   //NOTE: This method is particularly implemented to work with the "folder names", which are being used in the W2MHS toolbox.
-
-   //iterate through all sub-folders of the main directory, which consists of the WM_... images and the pmap images of subjects in separate folders
-   std::ifstream list(foldersList);
-   if(!list)
-   {
-      std::cerr << "Cannot read file: " <<  foldersList << std::endl;
-      return;
-   }
-   else
-   {
-      string subfolder;
-      while (std::getline(list, subfolder))
-      {
-         //subfolder="out_..." at this point
-         string subfolderID=subfolder.substr(4);      //keeps the substring after "out_"
-         string general=folderName+subfolder;
-         string WMname=general+"/WM_modstrip_"+subfolderID+".nii.gz";
-         string PMAPname=general+"/RFREG_pmap_"+subfolderID+".nii.gz";
-         string Segoutname=general+"/RFREG_out_"+subfolderID+".nii.gz";
-         string featuresName=general+"/trainingFeatures_"+subfolderID+".csv";
-         CreateTrainingDataset((char *)WMname.c_str(),(char*)PMAPname.c_str(),(char*)Segoutname.c_str(),(char*)featuresName.c_str());
-
-         std::cout << "Training feature set " << subfolder << " created successfully!" << std::endl;
-      }
-   }
-}//end of ReadSubFolders()
-
-
-void CreateTrainingDataset(char* WMFilename,char* pmapFilename,char* segoutFilename,char* featuresFilename)
-{
-
-   double minNO=0;
-   double maxNO=0.699;
-   double minYES=0.7;   //0.7 is the gamma value suggested by Kristan. As the RFREG_out images are generated by his modified code, then this threshold will probably works better for creating a training dataset out of W2MHS outputs
-   double maxYES=1;
-   //
-   ImagePointer wmNifti=NiftiReader(WMFilename);
-   ImagePointer pmapNifti=NiftiReader(pmapFilename);
-   ImagePointer segoutNifti=NiftiReader(segoutFilename);
-
-   MarginateImage(wmNifti,5);      //patch width is 5
-   double threshold=0.3*GetHistogramMax(wmNifti,127);      //this is based on what has been done in the W2MHS toolbox
-   //1.iterating through the thresholded voxels
-   //2.creating patches for each voxel
-   //3.extracting features for each patch
-   wmNifti->SetRequestedRegionToLargestPossibleRegion();
-   itk::ImageRegionIterator<ImageType> inputIterator(wmNifti, wmNifti->GetRequestedRegion());
-
-   pmapNifti->SetRequestedRegionToLargestPossibleRegion();
-   itk::ImageRegionIterator<ImageType> pmapIterator(pmapNifti, pmapNifti->GetRequestedRegion());
-
-   segoutNifti->SetRequestedRegionToLargestPossibleRegion();
-   itk::ImageRegionIterator<ImageType> segoutIterator(segoutNifti, segoutNifti->GetRequestedRegion());
-
-   while(!inputIterator.IsAtEnd())
-   {
-      if(inputIterator.Get() > threshold)
-      {
-         double classLabel=pmapIterator.Get();
-//         double segoutVal=segoutIterator.Get();
-//         if((segoutVal==1 && classLabel<maxNO) || (segoutVal!=1 && classLabel>minYES))
-//         {
-//            if(segoutVal==1 && classLabel<maxNO)
-//            {
-//               classLabel=-1;
-//            }
-//            if(segoutVal!=1 && classLabel>minYES)
-//            {
-//               classLabel=1;
-//            }
-
-
-
-      //         if(classLabel > minNO)
-      //         {
-      //         if((classLabel > minNO && classLabel <= maxNO) || (classLabel >= minYES && classLabel <= maxYES))
-      //         {
-      //            if(classLabel > minNO && classLabel <= maxNO)
-      //               classLabel=-1;
-      //            else    //if(pmapIntensity >= minYES && pmapIntensity <= maxYES)
-      //               classLabel=1;
-
-      //               if(classLabel >= 0.5)
-      //                  classLabel=1;
-      //               else if(classLabel < 0.5)   //if(pmapIntensity >= minYES && pmapIntensity <= maxYES)
-      //                  classLabel=-1;
-                  ImagePointer patch=GetPatch(wmNifti,inputIterator.GetIndex(), 5);
-                  Mat testSample = Mat(1, 2000, CV_32FC1);//NOT BEING USED HERE
-                  CreatePatchFeatureVector(patch,testSample,featuresFilename,classLabel);
-      //         }
-      //         }
-//         }
-      }
-      ++inputIterator;
-      ++pmapIterator;
-      ++segoutIterator;
-   }//end of iteration through the marginated and thresholded input image
-}//end of CreateTrainingDataset()
-*/
-
-
 
 bool LoadTrainingDataset(std::string trainingFilename, Mat trainingFeatures, Mat trainingLabels,int samplesCount,int featuresCount)
 {
@@ -2633,51 +2424,6 @@ void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat)
    }
 }//end of CreatePatchFeatureVector()
 
-
-
-/*
-void CreatePatchFeatureVector(ImagePointer patch, Mat patchFeatureMat, char* outputFilename,float classLabel)
-{
-   //NOTE: THIS METHOD OVERLOAD IS USED WHEN IT IS REQUIRED TO SAVE THE FEATURE VECTORS TOGHETHER WITH THEIR CORRESPONDING "CLASSLABEL" INTO A FILE.
-   //      THIS IS NOW BEING USED WHEN CREATING A TRAINING DATASET.
-
-
-   //get all kernels as a list. Kernels should be calculated first and be used as many times as needed.
-   std::list<ImagePointer> kernels=GetAllKernels();
-   int startIdx=0;      //this is to tell the AppendToPatchFeatureVector(), where to add new features
-   //get voxel intensities of each voxel of the path and add them to the feature vector of the patch
-   WriteImageFeatureVectorToFile(patch,true,outputFilename);
-
-   for (std::list<ImagePointer>::iterator kernelsIterator=kernels.begin(); kernelsIterator!=kernels.end(); ++kernelsIterator)
-   {
-      startIdx+=(patch->GetLargestPossibleRegion().GetSize()[0]*patch->GetLargestPossibleRegion().GetSize()[1]*patch->GetLargestPossibleRegion().GetSize()[2]);
-      //1. convolve the patch with all the kernels one by one
-      //2. get values of the returned convolved image and add them to the feature vector of the patch
-      ImagePointer convolvedImg=ConvolveImage(patch,*kernelsIterator,false);
-      //NOTE: some scaling has been done on the convolved image in the W2MHS toolbox, which are done here.
-      //      When we can get our own ground truth data, we may not need to do these necessarily.
-         int kernelIdx=distance(kernels.begin(), kernelsIterator);
-         int scalediv=1;
-         if(kernelIdx == kernels.size()-1)
-            scalediv=3;
-         int kernelWidth=kernelsIterator->GetPointer()->GetLargestPossibleRegion().GetSize()[0];
-         convolvedImg=DivideImageByConstant(convolvedImg,scalediv*std::pow(kernelWidth,3));
-
-         if(kernelIdx >= 2 && kernelIdx <= 7)
-            convolvedImg=AddImageToImage(convolvedImg,patch,false);
-         else if(kernelIdx >= 8 && kernelIdx <= 13)
-            convolvedImg=AddImageToImage(convolvedImg,patch,true);
-      //
-      WriteImageFeatureVectorToFile(convolvedImg,false,outputFilename);
-   }//end of iterating through kernels list
-
-   //writing the "classLabel at the end of the 'feature vector' row.
-   std::ofstream featuresFile;
-   featuresFile.open(outputFilename,std::ios::app);
-   featuresFile << classLabel << ",";
-   featuresFile.close();
-}//end of CreatePatchFeatureVector()
-*/
 
 ImagePointer MultiplyTwoImages(ImagePointer input1,ImagePointer input2)
 {
