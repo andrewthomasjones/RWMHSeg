@@ -13,16 +13,16 @@
 # -c cut off for pmap when doing EV calcs. pixels below cut off not counted. those above used in weighted sum.
 # 
 # it is assumed that input is in folders for each brain
-# .../out_m013126/WM_modstrip_m013126.nii, .../out_m013126/GMCSF_strip_m013126.nii, .../out_m013126/Vent_bin_m013126.nii  
+# .../out_mxxxxxx/WM_modstrip_mxxxxxx.nii, .../out_mxxxxxx/GMCSF_strip_mxxxxxx.nii, .../out_mxxxxxx/Vent_bin_mxxxxxx.nii  
 
 
 
-SAMPLE="m013126" #sample name 
+SAMPLE="mxxxxxx" #sample name 
 RFMOD="/data/home/uqajon14/w2mhs-itk/envisionRFModel_3107_4242.xml" #presaved RF model file
 PMAPCUT="0.5"  #cut-off for pmap for calulating volume 
 
-OUTFOLD="/data/home/uqajon14/Output/" #output base folde, will save like ~/Output/m013126/. code does NOT create new folders and does not WARN. To be fixed.
-BASEFOLD="/data/home/uqajon14/TrainingData/CAI_itk_w2mhs/itk_data/out_"  #input base folder i.e. "~/TrainingData/CAI_itk_w2mhs/itk_data/out_m013126/"
+OUTFOLD="/data/home/uqajon14/Output/" #output base folde, will save like ~/Output/mxxxxxx/. code does NOT create new folders and does not WARN. To be fixed.
+BASEFOLD="/data/home/uqajon14/TrainingData/CAI_itk_w2mhs/itk_data/out_"  #input base folder i.e. "~/TrainingData/CAI_itk_w2mhs/itk_data/out_mxxxxxx/"
 
 SAMPLEFOLD=$BASEFOLD$SAMPLE"/"
 MYFOLD=$OUTFOLD$SAMPLE"/"
