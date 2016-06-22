@@ -197,7 +197,7 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 
 		
 int main(int argc, char *argv[])
-{
+{		//falgs
 		bool testFlag = false;
 		bool justGetFeat = false;
 		bool createNewTrainingSet = false;
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 		bool classicFlag = false;
 		bool TFlag = false;
 		bool MFlag = false;
-		
+		bool twoDflag =  false; 
 		  	   		
 		int numberOfTrainingSamples;
 		int min_neighbours ;
@@ -225,6 +225,7 @@ int main(int argc, char *argv[])
 		std::string GMCSFStippedFilename;
 		std::string ventricleBinFilename; 
 		std::string rfmodelFilename;
+		
 		//output
 		std::string quantResultFilename;
 		std::string pmapOutFilename;
@@ -298,70 +299,107 @@ int main(int argc, char *argv[])
 			
 			// if use pmap cut value - normal mode
 			if (vm.count("p_cut")){
-				pmapCut = vm["p_cut"].as<double>(); 
-				classicFlag= true;
-				//names of various files, input and output
-				WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >());  
-				GMCSFStippedFilename = vecToString(vm["gm_strip"].as< vector<string> >()); 
-				ventricleBinFilename = vecToString(vm["vent_mask"].as< vector<string> >()); 
-				rfmodelFilename = vecToString(vm["rf_mod"].as< vector<string> >()); 
-				//output
-				quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
-				pmapOutFilename = vecToString(vm["pmap"].as< vector<string> >()); 
-				segOutFilename = vecToString(vm["seg"].as< vector<string> >()); 
+				try{
+					pmapCut = vm["p_cut"].as<double>(); 
+					classicFlag= true;
+					//names of various files, input and output
+					WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >());  
+					GMCSFStippedFilename = vecToString(vm["gm_strip"].as< vector<string> >()); 
+					ventricleBinFilename = vecToString(vm["vent_mask"].as< vector<string> >()); 
+					rfmodelFilename = vecToString(vm["rf_mod"].as< vector<string> >()); 
+					//output
+					quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
+					pmapOutFilename = vecToString(vm["pmap"].as< vector<string> >()); 
+					segOutFilename = vecToString(vm["seg"].as< vector<string> >());
+				}catch(...){
+					std::cerr << "Unable to read all inputs for classic(RF model) mode. Run --help" <<std::endl;
+					return 0;
+				} 
 				
 			}
 			
-			if (vm.count("p_thresh")){ // t-dist model
-				TFlag= true;
-				//names of various files, input and output
-				WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >());  
-				GMCSFStippedFilename = vecToString(vm["gm_strip"].as< vector<string> >()); 
-				ventricleBinFilename = vecToString(vm["vent_mask"].as< vector<string> >()); 
-				min_neighbours = vm["min_n"].as<int>();  //inputs for models
-				p_thresh_const = vm["p_thresh"].as<double>();
-				a = vm["min_v"].as<double>();
-				b = vm["max_v"].as<double>();
-				//std::cout<< p_thresh_const <<  vm["p_thresh"].as<double>() << std::endl;
-				//output
-				quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
-				segOutFilename = vecToString(vm["seg"].as< vector<string> >()); 
+			if (vm.count("p_thresh")){
+				try{
+					// t-dist model
+					TFlag= true;
+					//names of various files, input and output
+					WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >());  
+					GMCSFStippedFilename = vecToString(vm["gm_strip"].as< vector<string> >()); 
+					ventricleBinFilename = vecToString(vm["vent_mask"].as< vector<string> >()); 
+					min_neighbours = vm["min_n"].as<int>();  //inputs for models
+					p_thresh_const = vm["p_thresh"].as<double>();
+					a = vm["min_v"].as<double>();
+					b = vm["max_v"].as<double>();
+					//std::cout<< p_thresh_const <<  vm["p_thresh"].as<double>() << std::endl;
+					//output
+					quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
+					segOutFilename = vecToString(vm["seg"].as< vector<string> >()); 
+				}catch(...){
+					std::cerr << "Unable to read all inputs for t-distribution mode. Run --help" <<std::endl;
+					return 0;
+				} 
 				
 			}
 			
 			if (vm.count("d_thresh")){ //m-estimator model
-				MFlag= true;
-				//names of various files, input and output
-				WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >());  
-				GMCSFStippedFilename = vecToString(vm["gm_strip"].as< vector<string> >()); 
-				ventricleBinFilename = vecToString(vm["vent_mask"].as< vector<string> >()); 
-				min_neighbours = vm["min_n"].as<int>();  //inputs for models
-				d_thresh_const = vm["d_thresh"].as<double>();
-				
-				//output
-				quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
-				segOutFilename = vecToString(vm["seg"].as< vector<string> >()); 
+				try{
+					MFlag= true;
+					//names of various files, input and output
+					WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >());  
+					GMCSFStippedFilename = vecToString(vm["gm_strip"].as< vector<string> >()); 
+					ventricleBinFilename = vecToString(vm["vent_mask"].as< vector<string> >()); 
+					min_neighbours = vm["min_n"].as<int>();  //inputs for models
+					d_thresh_const = vm["d_thresh"].as<double>();
+					
+					//output
+					quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
+					segOutFilename = vecToString(vm["seg"].as< vector<string> >()); 
+				}catch(...){
+					std::cerr << "Unable to read all inputs for m-estimator mode. Run --help" <<std::endl;
+					return 0;
+				} 
 				
 			}
 						
 			if (vm.count("sample")){ //new rf mod
-				createNewRFModel = true;
-				trainingFilename = vecToString(vm["train"].as< vector<string> >());
-				rfmodelFilename = vecToString(vm["rf_mod"].as< vector<string> >());
-				numberOfTrainingSamples= vm["sample"].as<int>();  //the training data set size
+				try{
+					createNewRFModel = true;
+					trainingFilename = vecToString(vm["train"].as< vector<string> >());
+					rfmodelFilename = vecToString(vm["rf_mod"].as< vector<string> >());
+					numberOfTrainingSamples= vm["sample"].as<int>();  //the training data set size
+				}catch(...){
+					std::cerr << "Unable to read all inputs for new RF model mode. Run --help" <<std::endl;
+					return 0;
+				} 
+					
 				
 			}
 			
 			if (vm.count("o")){ //feature output mode
-				justGetFeat = true;
-				WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >()); 
-				quantResultFilename2 = vecToString(vm["out"].as< vector<string> >()); 
-				BRAVOFilename = vecToString(vm["bravo"].as< vector<string> >()); 
-				WMMaskFilename = vecToString(vm["wm_mask"].as< vector<string> >());
-				
+				try{
+					justGetFeat = true;
+					WMStrippedFilename = vecToString(vm["wm_strip"].as< vector<string> >()); 
+					quantResultFilename2 = vecToString(vm["out"].as< vector<string> >()); 
+					BRAVOFilename = vecToString(vm["bravo"].as< vector<string> >()); 
+					WMMaskFilename = vecToString(vm["wm_mask"].as< vector<string> >());
+				}catch(...){
+					std::cerr << "Unable to read all inputs for raw feature output mode. Run --help" <<std::endl;
+					return 0;
+				} 
 					
 				
+			}else{
+				try{
+					if (vm.count("bravo")){
+						BRAVOFilename = vecToString(vm["bravo"].as< vector<string> >()); 
+						twoDflag  = true ;
+					}
+				}catch(...){
+					std::cerr << "Second image (T1/Bravo) argument was not correctly read." <<std::endl;
+					return 0;
+				}
 			}
+			
 			std::cout << std::endl;
 			std::cout << "Inputs read successfully." <<std::endl;
 	
