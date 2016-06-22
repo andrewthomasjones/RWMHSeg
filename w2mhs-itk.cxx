@@ -65,6 +65,8 @@
 #include "vector"
 #include "unistd.h"
 #include "getopt.h"
+#include "vector"
+
 
 //BOOST
 #include "boost/math/distributions/students_t.hpp"
@@ -82,6 +84,7 @@ typedef itk::Image<float,3> ImageType;
 typedef ImageType::Pointer ImagePointer;
 typedef itk::Image<float,2> ImageType2D;
 typedef ImageType2D::Pointer ImagePointer2D;
+typedef std::pair <std::vector<double>, std::vector<double> > vecPair; 
 
 //FILTER, ETC TYPES
 typedef itk::MaskImageFilter< ImageType, ImageType > MaskFilterType;
@@ -154,6 +157,10 @@ void ReadSubFolders(std::string folderName, std::string foldersList);
 void CreateTrainingDataset(std::string WMFilename,std::string pmapFilename,std::string segoutFilename,std::string featuresFilename);
 std::string renamer(std::string baseName, std::string suffix);
 
+vecPair fitTdist(std::vector<double> y, std::vector<double> zeros,  double tol, int max_iter, double a, double b);
+vecPair fitMest(std::vector<double> y, std::vector<double> zeros,  double tol, int max_iter);
+
+
 //math functions
 double phi(double d);
 template <typename T> int sgn(T val);
@@ -191,7 +198,7 @@ std::string vecToString(vector<string> v);
 
 //new models
 ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilename, int min_neighbour,  double p_thresh_const, double min_df, double max_df);
-ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilename, int min_neighbour, double out_thresh_const);
+ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilename, int min_neighbour, double out_thresh_const, int max_iter, double tol);
 
 ////////////////////////////////////////////////   //////////////////////////////////////////////////////////
 
@@ -433,7 +440,7 @@ int main(int argc, char *argv[])
 			std::cout<< "min_neighbour :  " << min_neighbours  << std::endl;
     			
 			RFSegOutImage=ClassifyWMHsT(inNifti, segOutFilename,  min_neighbours,  p_thresh_const, a, b);
-			RFSegOutImage2=ClassifyWMHsM(inNifti, segOutFilename,  min_neighbours,  d_thresh_const);
+			RFSegOutImage2=ClassifyWMHsM(inNifti, segOutFilename,  min_neighbours,  d_thresh_const, 100, 0.01);
 			
 			QuantifyWMHs(0.0, RFSegOutImage, ventricleBinFilename, quantResultFilename);
 			QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);
@@ -534,7 +541,7 @@ int main(int argc, char *argv[])
 			std::cout<< "min_neighbour :  " << min_neighbours  << std::endl;
     			
 			//RFSegOutImage=ClassifyWMHsT(inNifti, segOutFilename,  min_neighbours,  p_thresh_const, a, b);
-			RFSegOutImageM=ClassifyWMHsM(inNifti, segOutFilenameM,  min_neighbours,  d_thresh_const);
+			RFSegOutImageM=ClassifyWMHsM(inNifti, segOutFilenameM,  min_neighbours,  d_thresh_const, 100, 0.0001);
 			
 			QuantifyWMHs(0.0, RFSegOutImageM, ventricleBinFilename, quantResultFilenameM);
 			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);
@@ -951,26 +958,16 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
    RFSegOutImage->SetSpacing(WMModStripImg->GetSpacing());      //e.g. 2mm*2mm*2mm
    RFSegOutImage->SetOrigin(WMModStripImg->GetOrigin());
    RFSegOutImage->Allocate();
-   
-   
-   
-	
+  
 	
 	//creating an output image (i.e. a segmentation image) out of the prediction results.
-  
-
-   
+     
    NeighborhoodIteratorType::RadiusType radius;
    radius.Fill(1);
     
    // set up iterators
     itk::ImageRegionIterator<ImageType> RFSegOutIterator(RFSegOutImage, outRegion);
-    
-
-
-		
-
-
+ 
 	
     NeighborhoodIteratorType inputIterator(radius, WMModStripImg, WMModStripImg->GetRequestedRegion());
   	
@@ -989,108 +986,34 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		}
 		++inputIterator;
 	}
-  	double z_sum = std::accumulate(zeros.begin(), zeros.end(), 0.0);
-  	double y_sum = std::accumulate(y.begin(), y.end(), 0.0);
-	double y_mean = y_sum / y.size();
-	
-	std::cout<< "pixel length:  " << y.size() <<  std::endl;
-	
-	std::vector<double> w = zeros;  
-	std::vector<double> d(y.size(), 0.0);
-	std::vector<double> wy_prod(y.size(), 0.0);  
-	std::vector<double> ymu_minus(y.size(), 0.0);
-	std::vector<double> ymu_minus2(y.size(), 0.0);
-	std::vector<double> sq_sum(y.size(), 0.0);
-	std::vector<double> sq_sum_w(y.size(), 0.0);
-	std::vector<double> w2(y.size(), 0.0); 
-	std::vector<double> diff_w(y.size(), 0.0);
-	std::vector<double> outliness(y.size(), 0.0);
-	std::vector<double> log_w(y.size(), 0.0);
-	
-	double mu = 0.0;
-	double sigma = 0.0;
-	double wy_sum = 0.0;
-	double w_sum = 0.0;
-	double w_sq_sum = 0.0;
-	double v_sum =0.0;
-	double diff = 1.0;
-	
-	int k =0;
 	
 	
-	double v = v_init;
-
-   
-   while(diff>tol & k <max_iter ){
-			    
-		boost::uintmax_t df_max_iter=500;
-		tools::eps_tolerance<double> tol(30);
-		
-		std::transform(y.begin(), y.end(), w.begin(), wy_prod.begin(), std::multiplies<double>()); 
-		wy_sum = std::accumulate(wy_prod.begin(), wy_prod.end(), 0.0);
-		w_sum = std::accumulate(w.begin(), w.end(), 0.0);
-		mu = y_sum/z_sum;
-		
-		std::transform(y.begin(), y.end(), ymu_minus.begin(), [mu](double x) { return x - mu; });
-			
-		
-		std::transform(ymu_minus.begin(), ymu_minus.end(), ymu_minus.begin(), sq_sum.begin(), std::multiplies<double>()); 
-		std::transform(sq_sum.begin(), sq_sum.end(), w.begin(), sq_sum_w.begin(), std::multiplies<double>()); 
-		sigma =  std::accumulate(sq_sum_w.begin(), sq_sum_w.end(), 0.0) / z_sum; //sigma is variance not sd
-		
-				
-				
-		std::transform(w.begin(),w.end(), log_w.begin(), [](double x) { return (std::log(x) - x); });
-		std::transform(log_w.begin(), log_w.end(), log_w.begin(), [](double x) { return isinf(x) ? 0.0 : x  ; }); //ignores pixels with value = 0
-		v_sum = std::accumulate(log_w.begin(), log_w.end(), 0.0)/ z_sum;
-		
-		if(k !=0){
-			df_eq_func rootFun = df_eq_func(v_sum);
-			std::pair<double, double>  r1= tools::bisect(rootFun, a, b, tol, df_max_iter);
-			v = (r1.first + r1.second)/2.0; 
-		}
-		
-		
-		std::transform(sq_sum.begin(), sq_sum.end(), d.begin(), [sigma](double x) { return std::sqrt(x / sigma); });
-		w2 = w;	
-		
-		
-		std::transform(d.begin(), d.end(), w.begin(), [v](double x) { return ((v+1) / (v+x*x));});
-		std::transform(w.begin(), w.end(), zeros.begin(), w.begin(), std::multiplies<double>()); //ignores pixels with value = 0
-
-		std::transform(w.begin(), w.end(), w2.begin(), diff_w.begin(), [](double x, double y) {return std::abs(x-y);}); 
-		
-		diff = std::accumulate(diff_w.begin(), diff_w.end(), 0.0);
+	vecPair model = fitTdist( y,  zeros,   tol,  max_iter,  a,  b);
 	
-		//std::cout<< "iter " << k << " mu " << mu << " sigma " << sigma << " v " << v << " diff " << diff << std::endl;
-		
-		++k;
-		
-   }
-   
-	std::cout<< "iter " << k << " mu " << mu << " sigma " << sigma << " v " << v << " diff " << diff << std::endl;	
-
+	
+	double mu = model.second.at(0);
+	double sigma = model.second.at(1);   
+	double v = model.second.at(2);  
 	
 	double p_thresh_const_2 = 1.0-p_thresh_const;
 		
-
-	std::transform(d.begin(), d.end(), zeros.begin(), d.begin(), std::multiplies<double>());  //ignores pixels with value = 0
-	
-	// Construct a students_t distribution with 4 degrees of freedom:
+	// Construct a students_t distribution with v degrees of freedom:
     students_t d1(v);
     std::vector<double> q(y.size(), 0.0);
     std::transform(y.begin(), y.end(), q.begin(),  [d1, mu, sigma](double x) { return cdf(d1, (x-mu)/std::sqrt(sigma)); }); 
 	
-
   	vector<double>::iterator it; 
     it=q.begin();
 	   
 	inputIterator.GoToBegin();
+	
 	int c = (inputIterator.Size());
 	int mid = (inputIterator.Size()) / 2;
 	
-   while(!inputIterator.IsAtEnd())
-   {
+	
+	
+	while(!inputIterator.IsAtEnd())
+	{
 		double acc = 0.0;
 		double neighbourhood_mean = 0.0;
 		int non_zero = 0;
@@ -1106,12 +1029,6 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		}	
 		neighbourhood_mean = acc/non_zero;			       
         
-           
-        //std::cout<< "values for dist " << *it   << std::endl;
-        
-         
-
-
          if(neighbourhood_mean > mu & *it > (1.- p_thresh_const)){
 			RFSegOutIterator.Set(1.0);
 		 }else{
@@ -1123,8 +1040,6 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		 ++inputIterator;
 		 it++;
 	}
-	
-	
 	
 	
 	ImagePointer RFSegOutImage2=ImageType::New();
@@ -1167,59 +1082,52 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 
 //FOR TEST: 'testingSamples' IS PASSED TO THIS METHOD ONLY WHEN TESTING & DEBUGGING. IN REAL CASES, THESE SAMPLES WILL BE EXTRACTED FROM THE INPUT IMAGES.
 //ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel, int featuresCount,char *rfSegOutFilename, Mat testingSamples)
-ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilename, int min_neighbour, double out_thresh_const)
+ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilename, int min_neighbour, double out_thresh_const, int max_iter=100, double tol = 0.0001)
 {
-//alg parameters
-	int max_iter=100;
-	double tol = 0.0001;
+
 	
-   std::cout << "Performing WMH segmentation with M-estimator..." << std::endl;
-
-   MarginateImage(WMModStripImg,5);                        
-   
-   //Patch width is 5 voxels. Thus, a margin of size 5 voxels will be discarded to avoid any problems when doing image convolution with kernels.
-
-   /* The image will be rescaled in order to discard the long tail seen in the image histogram (i.e. about 0.3 of the histogram, which contains informationless voxels).
-    * Note: itk::BinaryThresholdImageFilter can be used instead, if it is required to save the thresholded indexes (as in the W2MHS toolbox).
-    */
-   
-   WMModStripImg->SetRequestedRegionToLargestPossibleRegion();
-   //itk::ImageRegionIterator<ImageType> inputIterator(WMModStripImg, WMModStripImg->GetRequestedRegion());
-
-   //creating an output image (i.e. a segmentation image) out of the prediction results.
-   ImagePointer RFSegOutImage=ImageType::New();
-
-   ImageType::IndexType outStartIdx;
-   outStartIdx.Fill(0);
-
-   ImageType::SizeType outSize=WMModStripImg->GetLargestPossibleRegion().GetSize();
-   ImageType::RegionType outRegion;
-   outRegion.SetSize(outSize);
-   outRegion.SetIndex(outStartIdx);
-
-   RFSegOutImage->SetRegions(outRegion);
-   RFSegOutImage->SetDirection(WMModStripImg->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
-   RFSegOutImage->SetSpacing(WMModStripImg->GetSpacing());      //e.g. 2mm*2mm*2mm
-   RFSegOutImage->SetOrigin(WMModStripImg->GetOrigin());
-   RFSegOutImage->Allocate();
-   	
+	std::cout << "Performing WMH segmentation with M-estimator..." << std::endl;
+	
+	MarginateImage(WMModStripImg,5);                        
+	//Patch width is 5 voxels. Thus, a margin of size 5 voxels will be discarded to avoid any problems when doing image convolution with kernels.
+	// kept in to keep consistent with older RF model
+	
 	
 	//creating an output image (i.e. a segmentation image) out of the prediction results.
-     
-   NeighborhoodIteratorType::RadiusType radius;
-   radius.Fill(1);
-    
-   // set up iterators
-    itk::ImageRegionIterator<ImageType> RFSegOutIterator(RFSegOutImage, outRegion);
-    	
-    NeighborhoodIteratorType inputIterator(radius, WMModStripImg, WMModStripImg->GetRequestedRegion());
+	WMModStripImg->SetRequestedRegionToLargestPossibleRegion();
+	ImagePointer RFSegOutImage=ImageType::New();
+	
+	ImageType::IndexType outStartIdx;
+	outStartIdx.Fill(0);
+	
+	ImageType::SizeType outSize=WMModStripImg->GetLargestPossibleRegion().GetSize();
+	ImageType::RegionType outRegion;
+	outRegion.SetSize(outSize);
+	outRegion.SetIndex(outStartIdx);
+	
+	RFSegOutImage->SetRegions(outRegion);
+	RFSegOutImage->SetDirection(WMModStripImg->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
+	RFSegOutImage->SetSpacing(WMModStripImg->GetSpacing());      //e.g. 2mm*2mm*2mm
+	RFSegOutImage->SetOrigin(WMModStripImg->GetOrigin());
+	RFSegOutImage->Allocate();
+	
+	     
+	NeighborhoodIteratorType::RadiusType radius;
+	radius.Fill(1);
+	
+	// set up iterators
+	itk::ImageRegionIterator<ImageType> RFSegOutIterator(RFSegOutImage, outRegion);
+		
+	NeighborhoodIteratorType inputIterator(radius, WMModStripImg, WMModStripImg->GetRequestedRegion());
+	
+	//initialise vectors
+	std::vector<double> y;
+	std::vector<double> zeros;
+	
+	//model fit
+	// robust fit normal dist with M estimator
   	
-  	std::vector<double> y;
-  	std::vector<double> zeros;
-  	
-  	//model fit
-  	// robust fit normal dist with M estimator
-  	
+  	//put data into std::vector
 	while(!inputIterator.IsAtEnd())
 	{
 		y.push_back(inputIterator.GetCenterPixel());
@@ -1230,71 +1138,29 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		}
 		++inputIterator;
 	}
-  	double z_sum = std::accumulate(zeros.begin(), zeros.end(), 0.0);
-  	double y_sum = std::accumulate(y.begin(), y.end(), 0.0);
-	double y_mean = y_sum / y.size();
-	std::cout<< "length  " << y.size() <<  std::endl;
 	
-	std::vector<double> w = zeros;  
-	std::vector<double> d(y.size(), 0.0);
-	std::vector<double> wy_prod(y.size(), 0.0);  
-	std::vector<double> ymu_minus(y.size(), 0.0);
-	std::vector<double> ymu_minus2(y.size(), 0.0);
-	std::vector<double> sq_sum(y.size(), 0.0);
-	std::vector<double> sq_sum_w(y.size(), 0.0);
-	std::vector<double> w2(y.size(), 0.0); 
-	std::vector<double> diff_w(y.size(), 0.0);
-	std::vector<double> outliness(y.size(), 0.0);
-	std::vector<double> log_w(y.size(), 0.0);
 	
-	double mu = 0.0;
-	double sigma = 0.0;
-	double wy_sum = 0.0;
-	double w_sum = 0.0;
-	double w_sq_sum = 0.0;
-	double v_sum =0.0;
-	double diff = 1.0;
 	
-	int k =0;
+	vecPair model = fitMest(y, zeros,  tol, max_iter);
+		
+	double mu = model.second.at(0);
+	double sigma = model.second.at(1);   
 	
-	//iterative fit for M-est
-	while(diff>tol & k <max_iter ){
-			
-		std::transform(y.begin(), y.end(), w.begin(), wy_prod.begin(), std::multiplies<double>()); 
-		wy_sum = std::accumulate(wy_prod.begin(), wy_prod.end(), 0.0);
-		w_sum = std::accumulate(w.begin(), w.end(), 0.0);
-		mu = y_sum/w_sum;
-		
-		std::transform(y.begin(), y.end(), ymu_minus.begin(), [mu](double x) { return x - mu; });
-			
-		std::transform(ymu_minus.begin(), ymu_minus.end(), ymu_minus.begin(), sq_sum.begin(), std::multiplies<double>()); 
-		std::transform(sq_sum.begin(), sq_sum.end(), w.begin(), sq_sum_w.begin(), std::multiplies<double>()); 
-		sigma =  std::accumulate(sq_sum_w.begin(), sq_sum_w.end(), 0.0) / w_sum; //sigma is variance not sd
-		
-		std::transform(sq_sum.begin(), sq_sum.end(), d.begin(), [sigma](double x) { return std::sqrt(x / sigma); });
-		
-		w2 = w;
-		std::transform(d.begin(), d.end(), w.begin(), phi);
-		std::transform(w.begin(), w.end(), zeros.begin(), w.begin(), std::multiplies<double>()); //ignores pixels with value = 0
-
-		std::transform(w.begin(), w.end(), w2.begin(), diff_w.begin(), [](double x, double y) {return std::abs(x-y);}); 
-		
-		diff = std::accumulate(diff_w.begin(), diff_w.end(), 0.0);
-		++k;
-		
-   }
-   
-
-	std::transform(d.begin(), d.end(), zeros.begin(), d.begin(), std::multiplies<double>());  //ignores pixels with value = 0
+	vector<double>::iterator it; 
 	
-  	vector<double>::iterator it; 
-    it=d.begin();
+    it=model.first.begin();
+    
 	//malahabnois dist cutoff as in van leemput 99
 	double outly = -2*std::log(out_thresh_const*std::sqrt(2*3.141593*sigma)); 
+    
    
 	inputIterator.GoToBegin();
 	int c = (inputIterator.Size());
 	int mid = (inputIterator.Size()) / 2;
+	
+	
+	
+	
 	
    while(!inputIterator.IsAtEnd())
    {
@@ -1338,6 +1204,7 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 	NeighborhoodIteratorType RFSegOutIterator2(radius, RFSegOutImage2, outRegion);
 	
 	RFSegOutIterator.GoToBegin();
+	
 	//adjust using counts
 	while(!RFSegOutIterator2.IsAtEnd())
 	{
@@ -1369,6 +1236,175 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 }//end of ClassifyWMHs()
 
 
+vecPair fitMest(std::vector<double> y, std::vector<double> zeros,  double tol, int max_iter){
+
+	std::cout<< "observation length:  " << y.size() << " pixels" <<   std::endl;
+	
+  	double z_sum = std::accumulate(zeros.begin(), zeros.end(), 0.0);
+  	double y_sum = std::accumulate(y.begin(), y.end(), 0.0);
+	double y_mean = y_sum / y.size();
+	
+	//allocate vectors
+	std::vector<double> w = zeros;  
+	std::vector<double> d(y.size(), 0.0);
+	std::vector<double> wy_prod(y.size(), 0.0);  
+	std::vector<double> ymu_minus(y.size(), 0.0);
+	std::vector<double> ymu_minus2(y.size(), 0.0);
+	std::vector<double> sq_sum(y.size(), 0.0);
+	std::vector<double> sq_sum_w(y.size(), 0.0);
+	std::vector<double> w2(y.size(), 0.0); 
+	std::vector<double> diff_w(y.size(), 0.0);
+	std::vector<double> outliness(y.size(), 0.0);
+	std::vector<double> log_w(y.size(), 0.0);
+	
+	//allocate double
+	double mu = 0.0;
+	double sigma = 0.0;
+	double wy_sum = 0.0;
+	double w_sum = 0.0;
+	double w_sq_sum = 0.0;
+	double v_sum = 0.0;
+	double diff = 1.0;
+	
+	//allocated int
+	int k =0;
+	
+	
+	//iterative fit for M-est
+	while(diff>tol & k <max_iter ){
+		
+		std::transform(y.begin(), y.end(), w.begin(), wy_prod.begin(), std::multiplies<double>()); 
+		wy_sum = std::accumulate(wy_prod.begin(), wy_prod.end(), 0.0);
+		w_sum = std::accumulate(w.begin(), w.end(), 0.0);
+		mu = y_sum/w_sum;
+		
+		std::transform(y.begin(), y.end(), ymu_minus.begin(), [mu](double x) { return x - mu; });
+			
+		std::transform(ymu_minus.begin(), ymu_minus.end(), ymu_minus.begin(), sq_sum.begin(), std::multiplies<double>()); 
+		std::transform(sq_sum.begin(), sq_sum.end(), w.begin(), sq_sum_w.begin(), std::multiplies<double>()); 
+		sigma =  std::accumulate(sq_sum_w.begin(), sq_sum_w.end(), 0.0) / w_sum; //sigma is variance not sd
+		
+		std::transform(sq_sum.begin(), sq_sum.end(), d.begin(), [sigma](double x) { return std::sqrt(x / sigma); });
+		
+		w2 = w;
+		std::transform(d.begin(), d.end(), w.begin(), phi);
+		std::transform(w.begin(), w.end(), zeros.begin(), w.begin(), std::multiplies<double>()); //ignores pixels with value = 0
+		
+		std::transform(w.begin(), w.end(), w2.begin(), diff_w.begin(), [](double x, double y) {return std::abs(x-y);}); 
+		
+		diff = std::accumulate(diff_w.begin(), diff_w.end(), 0.0);
+		++k;
+	
+	}
+	
+	std::transform(d.begin(), d.end(), zeros.begin(), d.begin(), std::multiplies<double>());  //ignores pixels with value = 0
+	
+	std::cout<< "iter " << k << " mu " << mu << " sigma " << sigma << " diff " << diff << std::endl;
+	
+	std::vector<double> params;
+	params.push_back(sigma);
+	params.push_back(mu);
+	
+	
+	vecPair returnValues = vecPair(d, params);
+	
+	return(returnValues);
+}
+
+
+
+vecPair fitTdist(std::vector<double> y, std::vector<double> zeros,  double tol, int max_iter, double a, double b){
+
+	std::cout<< "observation length:  " << y.size() << " pixels" <<   std::endl;
+	
+  	double z_sum = std::accumulate(zeros.begin(), zeros.end(), 0.0);
+  	double y_sum = std::accumulate(y.begin(), y.end(), 0.0);
+	double y_mean = y_sum / y.size();
+	
+	//allocate vectors
+	std::vector<double> w = zeros;  
+	std::vector<double> d(y.size(), 0.0);
+	std::vector<double> wy_prod(y.size(), 0.0);  
+	std::vector<double> ymu_minus(y.size(), 0.0);
+	std::vector<double> ymu_minus2(y.size(), 0.0);
+	std::vector<double> sq_sum(y.size(), 0.0);
+	std::vector<double> sq_sum_w(y.size(), 0.0);
+	std::vector<double> w2(y.size(), 0.0); 
+	std::vector<double> diff_w(y.size(), 0.0);
+	std::vector<double> outliness(y.size(), 0.0);
+	std::vector<double> log_w(y.size(), 0.0);
+	
+	//allocate double
+	double mu = 0.0;
+	double sigma = 0.0;
+	double wy_sum = 0.0;
+	double w_sum = 0.0;
+	double w_sq_sum = 0.0;
+	double v_sum = 0.0;
+	double diff = 1.0;
+	double v = 4.0; // initial guess for degrees of freedom, could be user param but actually not very important, range (a,b) more important.
+	
+	//allocated int
+	int k =0;
+	
+	while(diff>tol & k <max_iter ){
+		    
+		boost::uintmax_t df_max_iter=500; // boost solver params, could be user params but relatively unimportant
+		tools::eps_tolerance<double> tol(30);
+		
+		std::transform(y.begin(), y.end(), w.begin(), wy_prod.begin(), std::multiplies<double>()); 
+		wy_sum = std::accumulate(wy_prod.begin(), wy_prod.end(), 0.0);
+		w_sum = std::accumulate(w.begin(), w.end(), 0.0);
+		mu = y_sum/z_sum;
+		
+		std::transform(y.begin(), y.end(), ymu_minus.begin(), [mu](double x) { return x - mu; });
+			
+		
+		std::transform(ymu_minus.begin(), ymu_minus.end(), ymu_minus.begin(), sq_sum.begin(), std::multiplies<double>()); 
+		std::transform(sq_sum.begin(), sq_sum.end(), w.begin(), sq_sum_w.begin(), std::multiplies<double>()); 
+		sigma =  std::accumulate(sq_sum_w.begin(), sq_sum_w.end(), 0.0) / z_sum; //sigma is variance not sd
+		
+				
+				
+		std::transform(w.begin(),w.end(), log_w.begin(), [](double x) { return (std::log(x) - x); });
+		std::transform(log_w.begin(), log_w.end(), log_w.begin(), [](double x) { return isinf(x) ? 0.0 : x  ; }); //ignores pixels with value = 0
+		v_sum = std::accumulate(log_w.begin(), log_w.end(), 0.0)/ z_sum;
+		
+		if(k !=0){
+			df_eq_func rootFun = df_eq_func(v_sum);
+			std::pair<double, double>  r1= tools::bisect(rootFun, a, b, tol, df_max_iter);
+			v = (r1.first + r1.second)/2.0; 
+		}
+		
+		
+		std::transform(sq_sum.begin(), sq_sum.end(), d.begin(), [sigma](double x) { return std::sqrt(x / sigma); });
+		w2 = w;	
+		
+		
+		std::transform(d.begin(), d.end(), w.begin(), [v](double x) { return ((v+1) / (v+x*x));});
+		std::transform(w.begin(), w.end(), zeros.begin(), w.begin(), std::multiplies<double>()); //ignores pixels with value = 0
+		
+		std::transform(w.begin(), w.end(), w2.begin(), diff_w.begin(), [](double x, double y) {return std::abs(x-y);}); 
+		
+		diff = std::accumulate(diff_w.begin(), diff_w.end(), 0.0);
+		
+		//std::cout<< "iter " << k << " mu " << mu << " sigma " << sigma << " v " << v << " diff " << diff << std::endl;
+		
+		++k;
+	
+	}
+    std::transform(d.begin(), d.end(), zeros.begin(), d.begin(), std::multiplies<double>());  //ignores pixels with value = 0
+
+	std::cout<< "iter " << k << " mu " << mu << " sigma " << sigma << " v " << v << " diff " << diff << std::endl;	
+
+	std::vector<double> params;
+	params.push_back(v);
+	params.push_back(sigma);
+	params.push_back(mu);
+	
+	vecPair returnValues = vecPair(d, params);
+	return(returnValues);
+}
 
 
 
