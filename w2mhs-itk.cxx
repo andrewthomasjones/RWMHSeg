@@ -1018,9 +1018,11 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 	vecPair model = fitTdist( y,  zeros,   tol,  max_iter,  a,  b);
 	
 	
-	double mu = model.second.at(0);
+	double mu = model.second.at(2);
 	double sigma = model.second.at(1);   
-	double v = model.second.at(2);  
+	double v = model.second.at(0);
+	
+	//std::cout << "df  " << v << " mean "<< mu << " sd  "<< sigma << std::endl;
 	
 	double p_thresh_const_2 = 1.0-p_thresh_const;
 		
@@ -1100,7 +1102,7 @@ ImagePointer ClassifyWMHsT(ImagePointer WMModStripImg, std::string rfSegOutFilen
 	}
 		
   
-   NiftiWriter(RFSegOutImage2,rfSegOutFilename.c_str()); 
+   NiftiWriter(RFSegOutImage,rfSegOutFilename.c_str()); 
 
    std::cout << "Done WMH segmentation successfully." << std::endl;
    return RFSegOutImage;
@@ -1170,8 +1172,8 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 	
 	vecPair model = fitMest(y, zeros,  tol, max_iter);
 		
-	double mu = model.second.at(0);
-	double sigma = model.second.at(1);   
+	double mu = model.second.at(1);
+	double sigma = model.second.at(0);   
 	
 	vector<double>::iterator it; 
 	
@@ -1179,6 +1181,7 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
     
 	//malahabnois dist cutoff as in van leemput 99
 	double outly = -2*std::log(out_thresh_const*std::sqrt(2*3.141593*sigma)); 
+    
     
    
 	inputIterator.GoToBegin();
@@ -1205,16 +1208,22 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 			}
 		
 		}	
-		neighbourhood_mean = acc/non_zero;			       
-        
+		
+		if(non_zero>0.){
+			neighbourhood_mean = acc/non_zero;			       
+        }else{
+			neighbourhood_mean = 0.;	
+		}
            
-        //std::cout<< "values for dist " << *it   << std::endl;
+       
         
          
-
+		
 
          if(neighbourhood_mean > mu & *it > outly){
 			RFSegOutIterator.Set(1.0);
+			std::cout << "local mean " << neighbourhood_mean << " mean "<< mu << " dist "<< *it << " cutoff "<< outly  << std::endl;
+			
 		 }else{
 			RFSegOutIterator.Set(0.0);
 		 }
@@ -1240,14 +1249,13 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		
 		for(int i=0; i<c; i++){
 			if(RFSegOutIterator2.GetPixel(i) == 1.0 & i != (c/2)){++count;}
-					
 		}	
 		
 		if(count< min_neighbour){
 			RFSegOutIterator.Set(0.0);
 		}else{
 			RFSegOutIterator.Set(RFSegOutIterator2.GetCenterPixel());
-			}
+		}
 			
   	   
 		
@@ -1256,7 +1264,7 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 	}
 		
   
-   NiftiWriter(RFSegOutImage2,rfSegOutFilename.c_str()); 
+   NiftiWriter(RFSegOutImage,rfSegOutFilename.c_str()); 
 
    std::cout << "Done WMH segmentation successfully." << std::endl;
    return RFSegOutImage;
@@ -1267,9 +1275,9 @@ vecPair fitMest(std::vector<double> y, std::vector<double> zeros,  double tol, i
 
 	std::cout<< "observation length:  " << y.size() << " pixels" <<   std::endl;
 	
-  	double z_sum = std::accumulate(zeros.begin(), zeros.end(), 0.0);
+  	//double z_sum = std::accumulate(zeros.begin(), zeros.end(), 0.0);
   	double y_sum = std::accumulate(y.begin(), y.end(), 0.0);
-	double y_mean = y_sum / y.size();
+	//double y_mean = y_sum / y.size();
 	
 	//allocate vectors
 	std::vector<double> w = zeros;  
@@ -1299,10 +1307,12 @@ vecPair fitMest(std::vector<double> y, std::vector<double> zeros,  double tol, i
 	
 	//iterative fit for M-est
 	while(diff>tol & k <max_iter ){
+		std::transform(w.begin(), w.end(), zeros.begin(), w.begin(), std::multiplies<double>());
 		
 		std::transform(y.begin(), y.end(), w.begin(), wy_prod.begin(), std::multiplies<double>()); 
 		wy_sum = std::accumulate(wy_prod.begin(), wy_prod.end(), 0.0);
 		w_sum = std::accumulate(w.begin(), w.end(), 0.0);
+		
 		mu = y_sum/w_sum;
 		
 		std::transform(y.begin(), y.end(), ymu_minus.begin(), [mu](double x) { return x - mu; });
@@ -1346,7 +1356,7 @@ vecPair fitTdist(std::vector<double> y, std::vector<double> zeros,  double tol, 
 	
   	double z_sum = std::accumulate(zeros.begin(), zeros.end(), 0.0);
   	double y_sum = std::accumulate(y.begin(), y.end(), 0.0);
-	double y_mean = y_sum / y.size();
+	//double y_mean = y_sum / y.size();
 	
 	//allocate vectors
 	std::vector<double> w = zeros;  
