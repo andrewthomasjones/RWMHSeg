@@ -19,7 +19,7 @@ SAMPLE="mxxxxxx" #sample name
 RFMOD="/data/home/uqajon14/w2mhs-itk/envisionRFModel_3107_4242.xml" #presaved RF model file
 PMAPCUT="0.5"  #cut-off for pmap for calulating volume 
 P_THRESH="0.02"  #cut-off for t-dist model
-D_THRESH="1.4"  #cut-off for m-estimator robust normal model
+D_THRESH="1.35"  #cut-off for m-estimator robust normal model
 MIN_N="3"  #min. neighbours new models
 
 OUTFOLD="/data/home/uqajon14/Output/" #output base folde, will save like ~/Output/mxxxxxx/. code does NOT create new folders and does not WARN. To be fixed.
