@@ -52,6 +52,7 @@
 #include "itkBinaryBallStructuringElement.h"
 #include "itkBinaryDilateImageFilter.h"
 #include "itkNeighborhoodOperator.h"
+#include "itkMRFImageFilter.h"
 
 //MISC
 #include "array"
@@ -341,6 +342,14 @@ int main(int argc, char *argv[])
 					//output
 					quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
 					segOutFilename = vecToString(vm["seg"].as< vector<string> >()); 
+					
+					//two d
+					if (vm.count("bravo")){
+						BRAVOFilename = vecToString(vm["bravo"].as< vector<string> >()); 
+						twoDflag = true;
+					}
+						
+						
 				}catch(...){
 					std::cerr << "Unable to read all inputs for t-distribution mode. Run --help" <<std::endl;
 					return 0;
@@ -361,6 +370,12 @@ int main(int argc, char *argv[])
 					//output
 					quantResultFilename = vecToString(vm["quant"].as< vector<string> >()); 
 					segOutFilename = vecToString(vm["seg"].as< vector<string> >()); 
+					
+					//two d
+					if (vm.count("bravo")){
+						BRAVOFilename = vecToString(vm["bravo"].as< vector<string> >()); 
+						twoDflag = true;
+					}
 				}catch(...){
 					std::cerr << "Unable to read all inputs for m-estimator mode. Run --help" <<std::endl;
 					return 0;
@@ -572,6 +587,14 @@ int main(int argc, char *argv[])
     			
 			RFSegOutImageT=ClassifyWMHsT(inNifti, segOutFilenameT,  min_neighbours,  p_thresh_const, a, b);
 			//RFSegOutImage2=ClassifyWMHsM(inNifti, segOutFilenameM,  min_neighbours,  d_thresh_const);
+			
+			
+			
+			
+			
+			
+	
+			
 			
 			//QuantifyWMHs(0.0, RFSegOutImageM, ventricleBinFilename, quantResultFilenameM);
 			QuantifyWMHs(0.0, RFSegOutImageT, ventricleBinFilename, quantResultFilenameT);
@@ -1199,7 +1222,7 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 		int non_zero = 0;
 		
 		for(int i=0; i<c; i++){		
-			double temp  = inputIterator.GetPixel(i);
+			double temp  = inputIterator.GetPixel(i); 
 			
 			if(i != (c/2))
 			{
@@ -1555,6 +1578,7 @@ void QuantifyWMHs(float pmapCut, ImagePointer pmapImg, std::string ventricleFile
    //voxelResolution has been hard-coded as '0.5' in the W2MHS toolbox code ('V_res').
    //float voxelRes=pmapImg->GetSpacing()[0];
    float voxelRes=pmapImg->GetSpacing()[0]*pmapImg->GetSpacing()[1]*pmapImg->GetSpacing()[2];
+   float dist =  pmapImg->GetSpacing()[0];//assumes same in all dim.
    int distDP=8;   //According to the definition of "Periventricular Region" in "“Anatomical mapping of white matter hyper- intensities (wmh) exploring the relationships between periventricular wmh, deep wmh, and total wmh burden, 2005", voxels closer than 8mm to ventricle are considered as 'Periventricular' regions.
    int k=1;   // Note: "EV calculates the hyperintense voxel count 'weighted' by the corresponding likelihood/probability, where 'k' controls the degree of weight (in formula (2))." ... 'k' is called 'gamma' in the W2MHS toolbox code.
 
@@ -1578,7 +1602,7 @@ void QuantifyWMHs(float pmapCut, ImagePointer pmapImg, std::string ventricleFile
     */
    typedef itk::FlatStructuringElement<3> StructuringElement3DType;      //3 is the image dimension
    StructuringElement3DType::RadiusType radius3D;
-   radius3D.Fill(distDP/voxelRes);      //"voxels closer than 8mm to ventricle are considered as 'DeepPeriventricular' regions.". Thus, when for example the voxel resolution of the image is 2mm, it means that those voxels that are within 8mm/2mm=4 voxels away from the ventricle should be considered as periventricular.
+   radius3D.Fill(distDP/dist);      //"voxels closer than 8mm to ventricle are considered as 'DeepPeriventricular' regions.". Thus, when for example the voxel resolution of the image is 2mm, it means that those voxels that are within 8mm/2mm=4 voxels away from the ventricle should be considered as periventricular.
    StructuringElement3DType structuringElem=StructuringElement3DType::Ball(radius3D);
 //   structuringElem.RadiusIsParametricOn();   //and "structuringElem.SetRadiusIsParametric(true)" make no difference in calculations, decpite what's been claimed (see above explanation)!
 
@@ -1595,7 +1619,10 @@ void QuantifyWMHs(float pmapCut, ImagePointer pmapImg, std::string ventricleFile
       dilateFilter->SetBackgroundValue(0);   //      Thus, these two lines are necessary, as the index type is set to float.
       ImagePointer dilatedVentricle=dilateFilter->GetOutput();
       dilatedVentricle->Update();
-
+		
+		
+	   string coolTest = "/data/home/uqajon14/Output/Jvent_dilate_test.nii";
+	   bool test = NiftiWriter(dilatedVentricle,coolTest);
       //separating Deep and Periventricular areas in pmap.
       ImagePointer periventricularPmap=MultiplyTwoImages(thresholdedPmap,dilatedVentricle);
       ImagePointer deepPmap=MultiplyTwoImages(thresholdedPmap,InvertImage(dilatedVentricle,1));
