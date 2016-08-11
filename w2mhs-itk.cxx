@@ -555,10 +555,31 @@ int main(int argc, char *argv[])
 	if(MFlag){
 			
 			ImagePointer RFSegOutImageM; 
+			
+			//~ ImagePointer RFSegOutImageM2; 
+			//~ ImagePointer RFSegOutImageM3;  
+			//~ ImagePointer RFSegOutImageM4; 
+			//~ ImagePointer RFSegOutImageM5; 
+			
 			ImagePointer inNifti = NiftiReader(WMStrippedFilename); 
 			
+			//for testing sensitivty
+			std::string quantResultFilenameM = renamer(quantResultFilename, "_m");
+			//~ std::string quantResultFilenameM2 = renamer(quantResultFilename, "_m2");	
+			//~ std::string quantResultFilenameM3 = renamer(quantResultFilename, "_m3");	
+			//~ std::string quantResultFilenameM4 = renamer(quantResultFilename, "_m4");	
+			//~ std::string quantResultFilenameM5 = renamer(quantResultFilename, "_m5");
 			
-			std::string quantResultFilenameM = renamer(quantResultFilename, "_m");	
+			//~ double  d_thresh_const2 = d_thresh_const + 0.05;
+			//~ double  d_thresh_const3 = d_thresh_const + 0.10;
+			//~ double  d_thresh_const4 = d_thresh_const + 0.15;
+			//~ double  d_thresh_const5 = d_thresh_const + 0.20;
+			
+				
+			//~ std::string segOutFilenameM2 = renamer(segOutFilename, "_m2");	
+			//~ std::string segOutFilenameM3= renamer(segOutFilename, "_m3");	
+			//~ std::string segOutFilenameM4 = renamer(segOutFilename, "_m4");	
+			//~ std::string segOutFilenameM5 = renamer(segOutFilename, "_m5");	
 			std::string segOutFilenameM = renamer(segOutFilename, "_m");	
 			
 			std::cout<< "M-estimator model"  << std::endl;
@@ -568,10 +589,25 @@ int main(int argc, char *argv[])
 			std::cout<< "d_thresh_const :  " << d_thresh_const  << std::endl;
 			std::cout<< "min_neighbour :  " << min_neighbours  << std::endl;
     			
+			
+			//~ 
+			//~ RFSegOutImageM2=ClassifyWMHsM(inNifti, segOutFilenameM2,  min_neighbours,  d_thresh_const2, 100, 0.0001);
+			//~ QuantifyWMHs(0.0, RFSegOutImageM2, ventricleBinFilename, quantResultFilenameM2);
+			//~ 
+			//~ RFSegOutImageM3=ClassifyWMHsM(inNifti, segOutFilenameM3,  min_neighbours,  d_thresh_const3, 100, 0.0001);
+			//~ QuantifyWMHs(0.0, RFSegOutImageM3, ventricleBinFilename, quantResultFilenameM3);
+			//~ 
+			//~ RFSegOutImageM4=ClassifyWMHsM(inNifti, segOutFilenameM4,  min_neighbours,  d_thresh_const4, 100, 0.0001);
+			//~ QuantifyWMHs(0.0, RFSegOutImageM4, ventricleBinFilename, quantResultFilenameM4);
+			//~ 
+			//~ RFSegOutImageM5=ClassifyWMHsM(inNifti, segOutFilenameM5,  min_neighbours,  d_thresh_const5, 100, 0.0001);
+			//~ QuantifyWMHs(0.0, RFSegOutImageM5, ventricleBinFilename, quantResultFilenameM5);
+			
 			//RFSegOutImage=ClassifyWMHsT(inNifti, segOutFilename,  min_neighbours,  p_thresh_const, a, b);
 			RFSegOutImageM=ClassifyWMHsM(inNifti, segOutFilenameM,  min_neighbours,  d_thresh_const, 100, 0.0001);
-			
 			QuantifyWMHs(0.0, RFSegOutImageM, ventricleBinFilename, quantResultFilenameM);
+			
+			
 			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);
 			
 			std::cout << "Done" <<std::endl;
@@ -1458,18 +1494,18 @@ ImagePointer ClassifyWMHsMRF(ImagePointer WMModStripImg, std::string rfSegOutFil
 	double meanDistance = 0;
 	MembershipFunctionType::CentroidType centroid(1);
 	
-		
-	MembershipFunctionPointer membershipFunction0 =  MembershipFunctionType::New();
-	//membershipFunction0->SetDistanceMetric(distanceMetric);
-	centroid[0] = 0.0;
-	membershipFunction0->SetCentroid( centroid );
-	classifier->AddMembershipFunction( membershipFunction0 );
-		
-	MembershipFunctionPointer membershipFunction1 =  MembershipFunctionType::New();
-	//membershipFunction1->SetDistanceMetric(distanceMetric);
-	centroid[0] = outly*2;
-	membershipFunction1->SetCentroid( centroid );
-	classifier->AddMembershipFunction( membershipFunction1 );
+		//~ 
+	//~ MembershipFunctionPointer membershipFunction0 =  MembershipFunctionType::New();
+	//~ //membershipFunction0->SetDistanceMetric(distanceMetric);
+	//~ centroid[0] = 0.0;
+	//~ membershipFunction0->SetCentroid( centroid );
+	//~ classifier->AddMembershipFunction( membershipFunction0 );
+		//~ 
+	//~ MembershipFunctionPointer membershipFunction1 =  MembershipFunctionType::New();
+	//~ //membershipFunction1->SetDistanceMetric(distanceMetric);
+	//~ centroid[0] = outly*2;
+	//~ membershipFunction1->SetCentroid( centroid );
+	//~ classifier->AddMembershipFunction( membershipFunction1 );
 		
 	mrfFilter->Update();
 	ImagePointer RFSegOutImage2=ImageType::New();
