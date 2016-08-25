@@ -1449,17 +1449,7 @@ ImagePointer ClassifyWMHsMRF(ImagePointer WMModStripImg, std::string rfSegOutFil
 	int numberOfClasses =2 ;
 	int numberOfIterations = 10;
 	double errTolMRF = 1e-7;
-	double smoothingFactor  = 2.0;
-	typedef itk::MRFImageFilter< ImageType, ImageType> MRFFilterType;
-	MRFFilterType::Pointer mrfFilter = MRFFilterType::New();
 	
-	
-	mrfFilter->SetInput( RFSegOutImage);
-	mrfFilter->SetNumberOfClasses( numberOfClasses );
-	mrfFilter->SetMaximumNumberOfIterations( numberOfIterations );
-	mrfFilter->SetErrorTolerance( errTolMRF  );
-	mrfFilter->SetSmoothingFactor( smoothingFactor );
-	mrfFilter->SetNeighborhoodRadius( 1 );
 	
 	std::vector< double > weights;
 	weights.push_back(0.5);
@@ -1472,44 +1462,18 @@ ImagePointer ClassifyWMHsMRF(ImagePointer WMModStripImg, std::string rfSegOutFil
 	weights.push_back(0.5);
 	weights.push_back(0.5);
 	  
-	mrfFilter->SetMRFNeighborhoodWeight( weights );
 	  
-	typedef MRFFilterType::OutputImageType ImageType;
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  
+	  
 	
-	typedef itk::ImageClassifierBase< ImageType, ImageType >   SupervisedClassifierType;
-	SupervisedClassifierType::Pointer classifier = SupervisedClassifierType::New();
-	
-	typedef itk::Statistics::MinimumDecisionRule DecisionRuleType;
-	DecisionRuleType::Pointer  classifierDecisionRule = DecisionRuleType::New();
-	
-	classifier->SetDecisionRule( classifierDecisionRule.GetPointer() );
-	
-	typedef itk::Statistics::DistanceToCentroidMembershipFunction<std::vector < float > > MembershipFunctionType; 
-	typedef MembershipFunctionType::Pointer MembershipFunctionPointer;
-	//typedef itk::Statistics::ManhattanDistanceMetric< float > distanceMetricType;
-	
-	//distanceMetricType::New() distanceMetric;
-	//distanceMetric->SetOrigin(0.0);
-	
-	double meanDistance = 0;
-	MembershipFunctionType::CentroidType centroid(1);
-	
-		//~ 
-	//~ MembershipFunctionPointer membershipFunction0 =  MembershipFunctionType::New();
-	//~ //membershipFunction0->SetDistanceMetric(distanceMetric);
-	//~ centroid[0] = 0.0;
-	//~ membershipFunction0->SetCentroid( centroid );
-	//~ classifier->AddMembershipFunction( membershipFunction0 );
-		//~ 
-	//~ MembershipFunctionPointer membershipFunction1 =  MembershipFunctionType::New();
-	//~ //membershipFunction1->SetDistanceMetric(distanceMetric);
-	//~ centroid[0] = outly*2;
-	//~ membershipFunction1->SetCentroid( centroid );
-	//~ classifier->AddMembershipFunction( membershipFunction1 );
-		
-	mrfFilter->Update();
 	ImagePointer RFSegOutImage2=ImageType::New();
-	RFSegOutImage2 = mrfFilter->GetOutput();
 	
 	
 	NeighborhoodIteratorType RFSegOutIterator2(radius, RFSegOutImage2, outRegion);
