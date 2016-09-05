@@ -167,7 +167,6 @@ vecPair fitTdist(std::vector<double> y, std::vector<double> zeros,  double tol, 
 vecPair fitMest(std::vector<double> y, std::vector<double> zeros,  double tol, int max_iter);
 
 ImagePointer doMRF(ImagePointer inputImage, ImagePointer labelImage, unsigned int numberOfClasses, double smoothingFactor, std::array<double,2> meanarray, int max_iter, double tol);
-ImagePointer standardizeWMH(ImagePointer WMModStripImg, std::string SegOutFilename, int min_neighbour, double out_thresh_const, int max_iter, double tol);
 
 //math functions
 double phi(double d);
@@ -203,7 +202,12 @@ double df_eq_func::getSumV()
 
 //class MembershipFunctionThreshold
 
-
+struct processedImage {
+    ImagePointer normalised;
+    ImagePointer labels;
+    double mean;
+};
+processedImage  standardizeWMH(ImagePointer WMModStripImg, std::string SegOutFilename, int min_neighbour, double out_thresh_const, int max_iter, double tol);
 
 
 
@@ -462,7 +466,7 @@ int main(int argc, char *argv[])
 		if(testFlag)
 		{
 			
-			ImagePointer RFSegOutImage,labels;  
+			ImagePointer SegOutImage,labels;  
 			ImagePointer inNifti = NiftiReader(WMStrippedFilename); 
 					
 			std::cout<< "p_thresh_const :  " << p_thresh_const  << std::endl;
@@ -470,22 +474,25 @@ int main(int argc, char *argv[])
 			std::cout<< "min_neighbour :  " << min_neighbours  << std::endl;
     			
 			//RFSegOutImage=ClassifyWMHsT(inNifti, segOutFilename,  min_neighbours,  p_thresh_const, a, b);
-			labels=standardizeWMH(inNifti, segOutFilename,  min_neighbours,  d_thresh_const, 100, 0.01);
+			processedImage result = standardizeWMH(inNifti, segOutFilename,  min_neighbours,  d_thresh_const, 100, 0.01);
+			labels = result.labels;
 			std::array<double,2> means;
 			
 			means[0] = 0.0;
-			means[1]= 8.7;
+			means[1]= result.mean;
 			
-			ImagePointer stdImg = NiftiReader(segOutFilename);  
-			RFSegOutImage=doMRF(stdImg,labels, 2, 1.0, means, 10, 1e-7);
+			ImagePointer stdImg = result.normalised; //NiftiReader(segOutFilename);  
+			NiftiWriter(stdImg, segOutFilename);
+			//ImagePointer doMRF(ImagePointer inputImage, ImagePointer labelImage, unsigned int numberOfClasses, double smoothingFactor, std::array<double,2> meanarray, int max_iter, double tol);
+			SegOutImage=doMRF(stdImg,labels, 2, 1.0, means, 10, 1e-7);
 			
 			//QuantifyWMHs(0.0, RFSegOutImage, ventricleBinFilename, quantResultFilename);
 			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);
 			
-			NiftiWriter(RFSegOutImage,segOutFilename);
+			NiftiWriter(SegOutImage, segOutFilename);
 			
 			
-			std::cout << " done" <<std::endl;
+			std::cout << " done" << std::endl;
 		
 			return 0;
 		}
@@ -568,33 +575,18 @@ int main(int argc, char *argv[])
 	
 	if(MFlag){
 			
-			ImagePointer RFSegOutImageM; 
+			ImagePointer RFSegOutImageM,SegOutImage, labels; 
 			
-			//~ ImagePointer RFSegOutImageM2; 
-			//~ ImagePointer RFSegOutImageM3;  
-			//~ ImagePointer RFSegOutImageM4; 
-			//~ ImagePointer RFSegOutImageM5; 
+			 
 			
 			ImagePointer inNifti = NiftiReader(WMStrippedFilename); 
 			
 			//for testing sensitivty
 			std::string quantResultFilenameM = renamer(quantResultFilename, "_m");
-			//~ std::string quantResultFilenameM2 = renamer(quantResultFilename, "_m2");	
-			//~ std::string quantResultFilenameM3 = renamer(quantResultFilename, "_m3");	
-			//~ std::string quantResultFilenameM4 = renamer(quantResultFilename, "_m4");	
-			//~ std::string quantResultFilenameM5 = renamer(quantResultFilename, "_m5");
 			
-			//~ double  d_thresh_const2 = d_thresh_const + 0.05;
-			//~ double  d_thresh_const3 = d_thresh_const + 0.10;
-			//~ double  d_thresh_const4 = d_thresh_const + 0.15;
-			//~ double  d_thresh_const5 = d_thresh_const + 0.20;
-			
-				
-			//~ std::string segOutFilenameM2 = renamer(segOutFilename, "_m2");	
-			//~ std::string segOutFilenameM3= renamer(segOutFilename, "_m3");	
-			//~ std::string segOutFilenameM4 = renamer(segOutFilename, "_m4");	
-			//~ std::string segOutFilenameM5 = renamer(segOutFilename, "_m5");	
 			std::string segOutFilenameM = renamer(segOutFilename, "_m");	
+			std::string segOutFilenameL = renamer(segOutFilename, "_label");	
+			std::string segOutFilenameN = renamer(segOutFilename, "_norm");	
 			
 			std::cout<< "M-estimator model"  << std::endl;
 			std::cout<< "quant :  " << quantResultFilenameM  << std::endl;
@@ -602,26 +594,38 @@ int main(int argc, char *argv[])
 											
 			std::cout<< "d_thresh_const :  " << d_thresh_const  << std::endl;
 			std::cout<< "min_neighbour :  " << min_neighbours  << std::endl;
-    			
-			
-			//~ 
-			//~ RFSegOutImageM2=ClassifyWMHsM(inNifti, segOutFilenameM2,  min_neighbours,  d_thresh_const2, 100, 0.0001);
-			//~ QuantifyWMHs(0.0, RFSegOutImageM2, ventricleBinFilename, quantResultFilenameM2);
-			//~ 
-			//~ RFSegOutImageM3=ClassifyWMHsM(inNifti, segOutFilenameM3,  min_neighbours,  d_thresh_const3, 100, 0.0001);
-			//~ QuantifyWMHs(0.0, RFSegOutImageM3, ventricleBinFilename, quantResultFilenameM3);
-			//~ 
-			//~ RFSegOutImageM4=ClassifyWMHsM(inNifti, segOutFilenameM4,  min_neighbours,  d_thresh_const4, 100, 0.0001);
-			//~ QuantifyWMHs(0.0, RFSegOutImageM4, ventricleBinFilename, quantResultFilenameM4);
-			//~ 
-			//~ RFSegOutImageM5=ClassifyWMHsM(inNifti, segOutFilenameM5,  min_neighbours,  d_thresh_const5, 100, 0.0001);
-			//~ QuantifyWMHs(0.0, RFSegOutImageM5, ventricleBinFilename, quantResultFilenameM5);
+    				
 			
 			//RFSegOutImage=ClassifyWMHsT(inNifti, segOutFilename,  min_neighbours,  p_thresh_const, a, b);
+			
 			RFSegOutImageM=ClassifyWMHsM(inNifti, segOutFilenameM,  min_neighbours,  d_thresh_const, 100, 0.0001);
 			QuantifyWMHs(0.0, RFSegOutImageM, ventricleBinFilename, quantResultFilenameM);
 			
 			
+			
+			std::cout<< "First model done ...  "  << std::endl;
+			
+			
+			
+			processedImage result = standardizeWMH(inNifti, segOutFilename,  min_neighbours,  d_thresh_const, 100, 0.01);
+			std::cout<< "Normalising image ...  "  << std::endl;
+			labels = result.labels;
+			std::array<double,2> means;
+			
+			means[0] = 0.0;
+			means[1]= result.mean;
+			ImagePointer stdImg = result.normalised; //NiftiReader(segOutFilename); 
+			
+		
+			
+			std::cout<< "Applying MRF ...  "   << std::endl;
+			SegOutImage=doMRF(stdImg, labels, 2, 1.0, means, 10, 1e-7);
+			std::cout<< "Saving results ...  "  << std::endl;
+			NiftiWriter(SegOutImage, segOutFilename);
+			QuantifyWMHs(0.0, SegOutImage, ventricleBinFilename, quantResultFilename);
+			
+			
+			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);	
 			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);
 			
 			std::cout << "Done" <<std::endl;
@@ -1360,7 +1364,7 @@ ImagePointer ClassifyWMHsM(ImagePointer WMModStripImg, std::string rfSegOutFilen
 
 //FOR TEST: 'testingSamples' IS PASSED TO THIS METHOD ONLY WHEN TESTING & DEBUGGING. IN REAL CASES, THESE SAMPLES WILL BE EXTRACTED FROM THE INPUT IMAGES.
 //ImagePointer ClassifyWMHs(ImagePointer WMModStripImg,CvRTrees* RFRegressionModel, int featuresCount,char *rfSegOutFilename, Mat testingSamples)
-ImagePointer standardizeWMH(ImagePointer WMModStripImg, std::string SegOutFilename, int min_neighbour, double out_thresh_const, int max_iter=100, double tol = 0.0001)
+processedImage standardizeWMH(ImagePointer WMModStripImg, std::string SegOutFilename, int min_neighbour, double out_thresh_const, int max_iter=100, double tol = 0.0001)
 {
 
 	
@@ -1401,6 +1405,7 @@ ImagePointer standardizeWMH(ImagePointer WMModStripImg, std::string SegOutFilena
 	
 	StdImage->SetRegions(StdImageRegion);
 	StdImage->SetDirection(WMModStripImg->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
+	StdImage->SetSpacing(WMModStripImg->GetSpacing()); 
 	StdImage->SetOrigin(WMModStripImg->GetOrigin());
 	StdImage->Allocate();
 	     
@@ -1504,9 +1509,18 @@ ImagePointer standardizeWMH(ImagePointer WMModStripImg, std::string SegOutFilena
 	}
 		
   
-   NiftiWriter(StdImage, SegOutFilename.c_str()); 
+   //NiftiWriter(StdImage, SegOutFilename.c_str()); 
    std::cout << "Done WMH segmentation successfully." << std::endl;
-   return SegOutImage;
+   
+   
+
+   
+   processedImage returnValue;
+   returnValue.labels = SegOutImage;
+   returnValue.normalised = StdImage;
+   returnValue.mean = mu;
+   
+   return returnValue;
 }//end of ClassifyWMHs()
 
 
@@ -1682,18 +1696,19 @@ ImagePointer doMRF(ImagePointer inputImage, ImagePointer labelImage, unsigned in
 	typedef itk::FixedArray<float,1>  ArrayPixelType;
 	typedef itk::Image< ArrayPixelType, 3 > ArrayImageType;
 	typedef itk::ComposeImageFilter<  ImageType, ArrayImageType > ScalarToArrayFilterType;
+	
 	ScalarToArrayFilterType::Pointer 	scalarToArrayFilter = ScalarToArrayFilterType::New();
 	scalarToArrayFilter->SetInput( inputImage );
 	
 	typedef itk::MRFImageFilter< ArrayImageType, ImageType > MRFFilterType;
 	MRFFilterType::Pointer mrfFilter = MRFFilterType::New();
+	//scalarToArrayFilter ->Update();
 	mrfFilter->SetInput( scalarToArrayFilter->GetOutput() );
-	scalarToArrayFilter ->Update();
-	
 	mrfFilter->SetNumberOfClasses( numberOfClasses );
 	mrfFilter->SetMaximumNumberOfIterations( max_iter );
 	mrfFilter->SetErrorTolerance( tol );
 	mrfFilter->SetSmoothingFactor( smoothingFactor );
+	mrfFilter->SetNeighborhoodRadius( 1 );
 	
 	typedef itk::ImageClassifierBase< ArrayImageType, ImageType >   SupervisedClassifierType;
 	SupervisedClassifierType::Pointer classifier =  SupervisedClassifierType::New();
@@ -1706,7 +1721,6 @@ ImagePointer doMRF(ImagePointer inputImage, ImagePointer labelImage, unsigned in
 	typedef MembershipFunctionType::Pointer MembershipFunctionPointer;
 	double meanDistance = 0;
 	MembershipFunctionType::CentroidType centroid(1);
-	//double meanarray[] = {0.0, 0.4};
 	
 	for(unsigned int i=0; i < numberOfClasses; i++ )
 	{
@@ -1716,24 +1730,22 @@ ImagePointer doMRF(ImagePointer inputImage, ImagePointer labelImage, unsigned in
 		classifier->AddMembershipFunction( membershipFunction );
 	}
 		
-	mrfFilter->SetSmoothingFactor( smoothingFactor );
-	mrfFilter->SetNeighborhoodRadius( 1 );
-		
-	static const double arr[] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-	std::vector< double > weights(arr, arr + sizeof(arr) / sizeof(arr[0]) );
 	
+	static const double arr[] = {1,1,1,1,1,1,1,1,1, 1,1,1,1,10,1,1,1,1, 1,1,1,1,1,1,1,1,1};
+	std::vector< double > weights(arr, arr + sizeof(arr) / sizeof(arr[0]) );
 	mrfFilter->SetMRFNeighborhoodWeight( weights );
 	mrfFilter->SetClassifier( classifier );
-	mrfFilter->Update();
-		
+	
+	
+	
 	typedef MRFFilterType::OutputImageType  OutputImageType;
 	OutputImageType::Pointer  OutputImage = OutputImageType::New();
 	OutputImage = mrfFilter->GetOutput();
-	
 	OutputImage->SetDirection(inputImage->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
 	OutputImage->SetSpacing(inputImage->GetSpacing());      //e.g. 2mm*2mm*2mm
 	OutputImage->SetOrigin(inputImage->GetOrigin());
-
+	std::cout << "where fail 9." << std::endl;	
+	OutputImage->Update();
 	return OutputImage;
 }
 
