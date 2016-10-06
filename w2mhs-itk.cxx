@@ -16,7 +16,7 @@
 /*
  * 
  * additional edits by andrew jones
- * andrewthomasjones@gmail.com
+ * andrewthomasjones@gmail.comInterp3
  * 2016
  * main changes:
  * input arg structure changed
@@ -575,7 +575,7 @@ int main(int argc, char *argv[])
 	
 	if(MFlag){
 			
-			ImagePointer RFSegOutImageM,SegOutImage, labels; 
+			ImagePointer RFSegOutImageM,SegOutImage; 
 			
 			 
 			
@@ -606,16 +606,26 @@ int main(int argc, char *argv[])
 			std::cout<< "First model done ...  "  << std::endl;
 			
 			
-			
+			//struct seems to interfere with ImagePointers, review.
+			//save temp files for now
 			processedImage result = standardizeWMH(inNifti, segOutFilename,  min_neighbours,  d_thresh_const, 100, 0.01);
 			std::cout<< "Normalising image ...  "  << std::endl;
-			labels = result.labels;
+			//labels = result.labels;
 			std::array<double,2> means;
 			
 			means[0] = 0.0;
-			means[1]= result.mean;
-			ImagePointer stdImg = result.normalised; //NiftiReader(segOutFilename); 
+			std::cout<< "mean:  " << result.mean << std::endl;
 			
+			means[1]= result.mean*2.0; //cutoff
+			
+			std::cout<< "cutoff:  " << means[1] << std::endl;
+			//ImagePointer stdImg = result.normalised; //NiftiReader(segOutFilename); 
+			
+			
+			//read in tempfiles
+			ImagePointer stdImg = NiftiReader(segOutFilenameN); 
+		    ImagePointer labels = NiftiReader(segOutFilenameL); 
+		
 		
 			
 			std::cout<< "Applying MRF ...  "   << std::endl;
@@ -1518,7 +1528,14 @@ processedImage standardizeWMH(ImagePointer WMModStripImg, std::string SegOutFile
    processedImage returnValue;
    returnValue.labels = SegOutImage;
    returnValue.normalised = StdImage;
-   returnValue.mean = mu;
+   returnValue.mean = outly;
+   
+   
+   std::string segOutFilenameL = renamer(SegOutFilename, "_label");	
+   std::string segOutFilenameN = renamer(SegOutFilename, "_norm");	
+   
+   NiftiWriter(returnValue.normalised, segOutFilenameN);
+   NiftiWriter(returnValue.labels, segOutFilenameL );
    
    return returnValue;
 }//end of ClassifyWMHs()
@@ -1731,7 +1748,7 @@ ImagePointer doMRF(ImagePointer inputImage, ImagePointer labelImage, unsigned in
 	}
 		
 	
-	static const double arr[] = {1,1,1,1,1,1,1,1,1, 1,1,1,1,10,1,1,1,1, 1,1,1,1,1,1,1,1,1};
+	static const double arr[] = {1,1,1,1,1,1,1,1,1,1,1,1,1,13.5,1,1,1,1,1,1,1,1,1,1,1,1,1}; //weighting
 	std::vector< double > weights(arr, arr + sizeof(arr) / sizeof(arr[0]) );
 	mrfFilter->SetMRFNeighborhoodWeight( weights );
 	mrfFilter->SetClassifier( classifier );
@@ -1744,7 +1761,6 @@ ImagePointer doMRF(ImagePointer inputImage, ImagePointer labelImage, unsigned in
 	OutputImage->SetDirection(inputImage->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
 	OutputImage->SetSpacing(inputImage->GetSpacing());      //e.g. 2mm*2mm*2mm
 	OutputImage->SetOrigin(inputImage->GetOrigin());
-	std::cout << "where fail 9." << std::endl;	
 	OutputImage->Update();
 	return OutputImage;
 }
