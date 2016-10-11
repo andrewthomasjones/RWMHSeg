@@ -583,8 +583,10 @@ int main(int argc, char *argv[])
 			
 			//for testing sensitivty
 			std::string quantResultFilenameM = renamer(quantResultFilename, "_m");
+			std::string quantResultFilenameMRF = renamer(quantResultFilename, "_mrf");
+			std::string segOutFilenameM = renamer(segOutFilename, "_m");
+			std::string segOutFilenameMRF = renamer(segOutFilename, "_mrf");	
 			
-			std::string segOutFilenameM = renamer(segOutFilename, "_m");	
 			std::string segOutFilenameL = renamer(segOutFilename, "_label");	
 			std::string segOutFilenameN = renamer(segOutFilename, "_norm");	
 			
@@ -631,8 +633,14 @@ int main(int argc, char *argv[])
 			std::cout<< "Applying MRF ...  "   << std::endl;
 			SegOutImage=doMRF(stdImg, labels, 2, 1.0, means, 10, 1e-7);
 			std::cout<< "Saving results ...  "  << std::endl;
-			NiftiWriter(SegOutImage, segOutFilename);
-			QuantifyWMHs(0.0, SegOutImage, ventricleBinFilename, quantResultFilename);
+			NiftiWriter(SegOutImage, segOutFilenameMRF);
+			
+			SegOutImage->SetDirection(inNifti->GetDirection());   //e.g. left-right Anterior-Posterior Sagittal-...
+			SegOutImage->SetSpacing(inNifti->GetSpacing());      //e.g. 2mm*2mm*2mm
+			SegOutImage->SetOrigin(inNifti->GetOrigin());
+			
+			
+			QuantifyWMHs(0.0, SegOutImage, ventricleBinFilename, quantResultFilenameMRF);
 			
 			
 			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);	
