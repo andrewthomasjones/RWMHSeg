@@ -642,6 +642,9 @@ int main(int argc, char *argv[])
 			
 			QuantifyWMHs(0.0, SegOutImage, ventricleBinFilename, quantResultFilenameMRF);
 			
+			//clean up temp files
+			std::remove(segOutFilenameN.c_str()); 
+			std::remove(segOutFilenameL.c_str()); 
 			
 			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);	
 			//QuantifyWMHs(0.0, RFSegOutImage2, ventricleBinFilename, quantResultFilename);
