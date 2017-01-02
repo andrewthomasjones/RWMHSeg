@@ -4,28 +4,19 @@ An implementation of a new method of using the pipeline of the W2MHS white matte
 Install/compile instructions for Ubuntu:
 
 # Install opencv
-   	$ apt-get install libopencv-dev
+    $ apt-get install libopencv-dev
 
 # Install Glue
-	$ apt-get install glue-sprite
+    $ apt-get install glue-sprite
 
 # Install Boost	 
-	$ apt-get install libboost-all-dev
+    $ apt-get install libboost-all-dev
 
 # Install ITK	
 Instructions can be found [here](https://itk.org/Wiki/ITK_Configuring_and_Building_for_Ubuntu_Linux#Installing_ITK_from_Ubuntu_packages).
 
-Build:
-
-# create a build dir, cmake and make
-   
-   $ mkdir build
-   
-   $ cd build
-   $ cmake ..
-   
-   $ make
-
-    
-   
-   
+#Build:
+    $ mkdir build
+    $ cd build
+    $ cmake ..
+    $ make
