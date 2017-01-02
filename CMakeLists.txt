@@ -4,7 +4,7 @@
 # 
 # Shahrzad Moeiniyan Bagheri + Andrew Janke
 
-#Andrew Jones added Boost,  June 2016
+#Andrew Jones added Boost other changes,  June - Sep 2016
 
 cmake_minimum_required(VERSION 2.8)
  
