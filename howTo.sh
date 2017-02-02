@@ -27,7 +27,9 @@ MYFOLD=$OUTFOLD$SAMPLE"/"
 
 cd ~/RWMHSeg/build #location of executable
 
-#will run all three models
+#will run all models
 ./RWMHSeg -w $SAMPLEFOLD"WM_modstrip_"$SAMPLE".nii" -g $SAMPLEFOLD"GMCSF_strip_"$SAMPLE".nii" -v $SAMPLEFOLD"Vent_bin_"$SAMPLE".nii" -s $MYFOLD"WMHSeg_"$SAMPLE".nii" -q $MYFOLD"Results_"$SAMPLE".txt" -x $P_THRESH -d $D_THRESH -n $MIN_N
 
+#will just run new model
+./RWMHSeg -w $SAMPLEFOLD"WM_modstrip_"$SAMPLE".nii" -g $SAMPLEFOLD"GMCSF_strip_"$SAMPLE".nii" -v $SAMPLEFOLD"Vent_bin_"$SAMPLE".nii" -s $MYFOLD"WMHSeg_"$SAMPLE".nii" -q $MYFOLD"Results_"$SAMPLE".txt" -d $D_THRESH 
 
