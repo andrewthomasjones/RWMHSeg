@@ -11,6 +11,12 @@ Install/compile instructions for Ubuntu:
 
 # Install Boost	 
     $ apt-get install libboost-all-dev
+    
+# Install cmake    
+    $ sudo apt-get install cmake
+    
+# Install VTK    
+    $ sudo apt-get install libvtk5-dev 
 
 # Install ITK	
 Instructions can be found [here](https://itk.org/Wiki/ITK_Configuring_and_Building_for_Ubuntu_Linux#Installing_ITK_from_Ubuntu_packages).
