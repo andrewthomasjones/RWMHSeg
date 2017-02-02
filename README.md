@@ -19,7 +19,8 @@ Install/compile instructions for Ubuntu:
     $ sudo apt-get install libvtk5-dev 
 
 # Install ITK	
-Instructions can be found [here](https://itk.org/Wiki/ITK_Configuring_and_Building_for_Ubuntu_Linux#Installing_ITK_from_Ubuntu_packages).
+Instructions can be found [here](https://itk.org/Wiki/ITK_Configuring_and_Building_for_Ubuntu_Linux#Building_and_installing_ITK_from_source_code.)
+Note that you will need to install ITK from source, as some of the functions used are not available through the ubuntu aptitude install. 
 
 #Build:
     $ mkdir build
