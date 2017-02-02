@@ -1,5 +1,5 @@
 # RWMHSeg - Robust White Matter Hyperintensity Segmentaion
-An implementation of a new method of using the pipeline of the W2MHS white matter hyperintensity segmentation method as reproduced using ITK.
+An implementation of a new robust method for White Matter Hyperintensity Segmentaion, using the pipeline of the W2MHS white matter hyperintensity segmentation method, as reproduced using ITK in the W2MHS-ITK project.
 
 Install/compile instructions for Ubuntu:
 
