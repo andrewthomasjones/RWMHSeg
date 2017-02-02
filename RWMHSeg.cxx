@@ -1,3 +1,12 @@
+/* RMWHSeg
+ * 
+ * andrew jones
+ * andrewthomasjones@gmail.com
+ * 2016
+
+ */
+
+
 /* W2MHS in ITK
  *
  *  re-implementation of W2MHS + improvements in ITK
@@ -13,18 +22,7 @@
  */
 
 
-/*
- * 
- * additional edits by andrew jones
- * andrewthomasjones@gmail.comInterp3
- * 2016
- * main changes:
- * input arg structure changed
- * new modes for testig and training
- * new models
- * added boost
- * refactored to use strings over *char mostly
- */
+
  
 //ITK HEADERS
 #include "itkImage.h"
@@ -711,7 +709,7 @@ void ShowCommandLineHelp()
 	std::cerr << "      " << "-v, --vent_mask: Specifies the .nii file name and path of the binary ventricle PVE image." << std::endl<< std::endl;
 	
 	std::cerr << "      " << "-q, --quant: Specifies the (.txt) file name and path, where WMH quantification results will be saved." << std::endl;
-	std::cerr << "      " << "-s, --seg: Specifies the .nii file name and path, where the WMH segmentation results will be saved."<< std::endl;
+	std::cerr << "      " << "-s, --seg: Specifies the (.nii) file name and path, where the WMH segmentation results will be saved."<< std::endl;
 	std::cerr << std::endl;
 	std::cerr << "      " <<  "  *** Must supply at least one of --c, --d, --p as these also function to select the relevant model. ***" << std::endl;
 	std::cerr << "      " <<  "  *** Results from new models will append _m and _t to output filenames. ***" << std::endl;

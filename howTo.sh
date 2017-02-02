@@ -13,23 +13,22 @@
 # it is assumed that input is in folders for each brain
 # .../out_mxxxxxx/WM_modstrip_mxxxxxx.nii, .../out_mxxxxxx/GMCSF_strip_mxxxxxx.nii, .../out_mxxxxxx/Vent_bin_mxxxxxx.nii  
 
-
-
 SAMPLE="mxxxxxx" #sample name 
-RFMOD="/data/home/uqajon14/w2mhs-itk/envisionRFModel_3107_4242.xml" #presaved RF model file
+RFMOD="/folder/xxxx/envisionRFModel_3107_4242.xml" #presaved RF model file
 PMAPCUT="0.5"  #cut-off for pmap for calulating volume 
 P_THRESH="0.02"  #cut-off for t-dist model
 D_THRESH="1.35"  #cut-off for m-estimator robust normal model
-MIN_N="3"  #min. neighbours new models
+MIN_N="3"  #min. neighbours for m-estimator robust normal model
 
-OUTFOLD="/data/home/uqajon14/Output/" #output base folde, will save like ~/Output/mxxxxxx/. code does NOT create new folders and does not WARN. To be fixed.
-BASEFOLD="/data/home/uqajon14/TrainingData/CAI_itk_w2mhs/itk_data/out_"  #input base folder i.e. "~/TrainingData/CAI_itk_w2mhs/itk_data/out_mxxxxxx/"
+OUTFOLD="/folder/xxxx/Output/" #output base folde, will save like ~/Output/mxxxxxx/. code does NOT create new folders and does not WARN. To be fixed.
+BASEFOLD="/folder/xxxx/out_"  #input base folder i.e. "~/TrainingData/CAI_itk_w2mhs/itk_data/out_mxxxxxx/"
 
 SAMPLEFOLD=$BASEFOLD$SAMPLE"/"
 MYFOLD=$OUTFOLD$SAMPLE"/"
 
-cd ~/w2mhs-itk/build #location of executable
+cd ~/RWMHSeg/build #location of executable
 
-./w2mhs-itk -w $SAMPLEFOLD"WM_modstrip_"$SAMPLE".nii" -g $SAMPLEFOLD"GMCSF_strip_"$SAMPLE".nii" -v $SAMPLEFOLD"Vent_bin_"$SAMPLE".nii" -s $MYFOLD"WMHSeg_"$SAMPLE".nii" -q $MYFOLD"Results_"$SAMPLE".txt" -x $P_THRESH -d $D_THRESH -n $MIN_N
+#will run all three models
+./RWMHSeg -w $SAMPLEFOLD"WM_modstrip_"$SAMPLE".nii" -g $SAMPLEFOLD"GMCSF_strip_"$SAMPLE".nii" -v $SAMPLEFOLD"Vent_bin_"$SAMPLE".nii" -s $MYFOLD"WMHSeg_"$SAMPLE".nii" -q $MYFOLD"Results_"$SAMPLE".txt" -x $P_THRESH -d $D_THRESH -n $MIN_N
 
 
